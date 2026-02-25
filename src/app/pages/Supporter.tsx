@@ -76,7 +76,7 @@ export default function Supporter() {
 
             <div className="w-full space-y-2 text-center">
               <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Chave PIX</p>
-              <div className="p-3 bg-muted rounded-lg font-mono text-xs break-all select-all border border-dashed border-primary/50">
+              <div className="p-3 bg-muted rounded-lg font-mono text-sm break-all select-all border border-dashed border-primary/50">
                 {PIX_KEY}
               </div>
             </div>
