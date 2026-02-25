@@ -1,4 +1,4 @@
-import { Outlet, Link } from "react-router";
+import { Outlet, Link, useLocation } from "react-router";
 import { ThemeProvider } from "./components/theme-provider";
 import { ModeToggle } from "./components/theme-toggle";
 import { Search as SearchIcon, User, BookOpen, Coffee, Flame } from "lucide-react";
@@ -8,10 +8,12 @@ import { useEffect, useState } from "react";
 import { auth, onAuthStateChanged, User as FirebaseUser } from "./lib/firebase";
 import { CookieConsent } from "./components/CookieConsent";
 import { userRepository } from "./di";
+import ScrollToTop from "./components/ScrollToTop";
 
 export default function Root() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [role, setRole] = useState<'user' | 'supporter' | 'admin'>('user');
+  const location = useLocation();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -29,6 +31,7 @@ export default function Root() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ScrollToTop />
       <div className="min-h-screen bg-background text-foreground flex flex-col">
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container flex h-14 items-center px-4">
@@ -101,7 +104,7 @@ export default function Root() {
             </div>
           </div>
         </header>
-        <main className="flex-1">
+        <main key={location.pathname} className="flex-1">
           <Outlet />
         </main>
         <footer className="py-6 md:px-8 md:py-0 border-t">

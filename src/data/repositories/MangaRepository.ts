@@ -50,7 +50,6 @@ export class MangaRepository implements IMangaRepository {
     };
   }
 
-  // Função auxiliar para resolver o path no Proxy da Vercel
   private getPath(endpoint: string): string {
     return isProd ? '' : endpoint;
   }
@@ -92,9 +91,10 @@ export class MangaRepository implements IMangaRepository {
       limit: params.limit || 20,
       offset: params.offset || 0,
       'includes[]': ['cover_art'],
-      'contentRating[]': params.contentRating || ['safe', 'suggestive', 'erotica'],
+      'contentRating[]': params.contentRating && params.contentRating.length > 0
+        ? params.contentRating
+        : ['safe', 'suggestive', 'erotica'],
       'availableTranslatedLanguage[]': ['pt-br', 'pt'],
-      // Filtro crucial: só trazer mangás que tenham pelo menos um capítulo em PT-BR ou PT
       'hasAvailableChapters': 'true'
     };
 
@@ -112,8 +112,17 @@ export class MangaRepository implements IMangaRepository {
     }
 
     const response = await client.get(this.getPath('/manga'), { params: apiParams });
+
+    // Filtro rigoroso no cliente para garantir apenas mangás com capítulos em PT-BR/PT (trata dados obsoletos da API)
+    const filteredData = response.data.data
+      .map((m: any) => this.mapToManga(m))
+      .filter((m: Manga) =>
+        m.availableLanguages.includes('pt-br') ||
+        m.availableLanguages.includes('pt')
+      );
+
     return {
-      data: response.data.data.map((m: any) => this.mapToManga(m)),
+      data: filteredData,
       total: response.data.total
     };
   }

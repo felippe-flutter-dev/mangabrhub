@@ -1,21 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Chapter } from "../../domain/models/Chapter";
-import { chapterRepository } from "../../app/di";
-
-// Funções para LocalStorage
-const getReadChapters = (): string[] => {
-  try {
-    const saved = localStorage.getItem('read_chapters');
-    return saved ? JSON.parse(saved) : [];
-  } catch (e) { return []; }
-};
-
-const getCurrentlyReading = (mangaId: string): string | null => {
-  try {
-    const reading = JSON.parse(localStorage.getItem('currently_reading') || '{}');
-    return reading[mangaId] || null;
-  } catch (e) { return null; }
-};
+import { chapterRepository, storageService } from "../../app/di";
 
 export interface GroupedChapter {
   chapterNumber: string;
@@ -26,11 +11,16 @@ export function useChapterListViewModel(mangaId: string) {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [readChapters, setReadChapters] = useState<string[]>(getReadChapters());
-  const [currentReadId, setCurrentReadId] = useState<string | null>(getCurrentlyReading(mangaId));
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [readChapters, setReadChapters] = useState<string[]>([]);
+  const [currentReadId, setCurrentReadId] = useState<string | null>(null);
+  const [sortOrder, setSortBy] = useState<'asc' | 'desc'>('desc');
 
   const limit = 100;
+
+  const refreshStorageData = useCallback(() => {
+    setReadChapters(storageService.getReadChapters());
+    setCurrentReadId(storageService.getCurrentlyReading(mangaId));
+  }, [mangaId]);
 
   const fetchChapters = useCallback(async (page: number = 1, order: 'asc' | 'desc' = sortOrder) => {
     setLoading(true);
@@ -39,7 +29,10 @@ export function useChapterListViewModel(mangaId: string) {
       const { data } = await chapterRepository.getMangaChapters(mangaId, limit, offset, order);
       setChapters(data);
       setLoading(false);
-    } catch (err) { setError("Erro."); setLoading(false); }
+    } catch (err) {
+      setError("Erro ao carregar capítulos.");
+      setLoading(false);
+    }
   }, [mangaId, sortOrder]);
 
   const groupedChapters = useMemo(() => {
@@ -62,17 +55,22 @@ export function useChapterListViewModel(mangaId: string) {
 
   useEffect(() => {
     fetchChapters(1, sortOrder);
+    refreshStorageData();
+
     const handleUpdate = () => {
-      setReadChapters(getReadChapters());
-      setCurrentReadId(getCurrentlyReading(mangaId));
+      refreshStorageData();
     };
+
     window.addEventListener('chapters_updated', handleUpdate);
     return () => window.removeEventListener('chapters_updated', handleUpdate);
-  }, [mangaId, fetchChapters, sortOrder]);
+  }, [mangaId, fetchChapters, sortOrder, refreshStorageData]);
 
   return {
-    groupedChapters, loading, error, sortOrder,
-    toggleSortOrder: () => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc'),
+    groupedChapters,
+    loading,
+    error,
+    sortOrder,
+    toggleSortOrder: () => setSortBy(prev => prev === 'desc' ? 'asc' : 'desc'),
     isRead: (id: string) => readChapters.includes(id),
     isCurrentlyReading: (id: string) => currentReadId === id,
     totalChapters: chapters.length

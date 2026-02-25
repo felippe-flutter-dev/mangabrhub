@@ -2,23 +2,20 @@ import { IStorageService } from "../../domain/services/IStorageService";
 import { auth } from "../../app/lib/firebase";
 
 export class LocalStorageService implements IStorageService {
-  private readonly READ_CHAPTERS_KEY = 'read_chapters';
-  private readonly CURRENTLY_READING_KEY = 'currently_reading';
+  private readonly READ_CHAPTERS_SUFFIX = 'read_chapters';
+  private readonly CURRENTLY_READING_SUFFIX = 'currently_reading';
 
-  /**
-   * Retorna o ID do usuário logado ou 'guest' para isolar os dados no localStorage.
-   */
-  private getUserId(): string {
+  private getPrefix(): string {
     return auth.currentUser?.uid || 'guest';
   }
 
-  private getKey(baseKey: string): string {
-    return `${this.getUserId()}_${baseKey}`;
+  private getKey(suffix: string): string {
+    return `${this.getPrefix()}_${suffix}`;
   }
 
   getReadChapters(): string[] {
     try {
-      const saved = localStorage.getItem(this.getKey(this.READ_CHAPTERS_KEY));
+      const saved = localStorage.getItem(this.getKey(this.READ_CHAPTERS_SUFFIX));
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
       return [];
@@ -26,21 +23,24 @@ export class LocalStorageService implements IStorageService {
   }
 
   markChapterAsRead(chapterId: string): void {
+    if (!chapterId) return;
     try {
       const read = this.getReadChapters();
       if (!read.includes(chapterId)) {
         read.push(chapterId);
-        localStorage.setItem(this.getKey(this.READ_CHAPTERS_KEY), JSON.stringify(read));
+        localStorage.setItem(this.getKey(this.READ_CHAPTERS_SUFFIX), JSON.stringify(read));
+
+        // Quando marca como lido, remove do "lendo"
+        this.removeCurrentlyReadingByChapter(chapterId);
+
         window.dispatchEvent(new Event('chapters_updated'));
       }
-    } catch (err) {
-      // Erro silencioso em produção
-    }
+    } catch (err) { /* ignore */ }
   }
 
   getCurrentlyReading(mangaId: string): string | null {
     try {
-      const reading = JSON.parse(localStorage.getItem(this.getKey(this.CURRENTLY_READING_KEY)) || '{}');
+      const reading = JSON.parse(localStorage.getItem(this.getKey(this.CURRENTLY_READING_SUFFIX)) || '{}');
       return reading[mangaId] || null;
     } catch (e) {
       return null;
@@ -48,24 +48,43 @@ export class LocalStorageService implements IStorageService {
   }
 
   setCurrentlyReading(mangaId: string, chapterId: string): void {
+    if (!mangaId || !chapterId) return;
     try {
-      const reading = JSON.parse(localStorage.getItem(this.getKey(this.CURRENTLY_READING_KEY)) || '{}');
-      reading[mangaId] = chapterId;
-      localStorage.setItem(this.getKey(this.CURRENTLY_READING_KEY), JSON.stringify(reading));
-      window.dispatchEvent(new Event('chapters_updated'));
-    } catch (e) {
-      // Erro silencioso em produção
-    }
+      // Se já estiver lido, não marca como lendo
+      if (this.getReadChapters().includes(chapterId)) return;
+
+      const reading = JSON.parse(localStorage.getItem(this.getKey(this.CURRENTLY_READING_SUFFIX)) || '{}');
+      if (reading[mangaId] !== chapterId) {
+        reading[mangaId] = chapterId;
+        localStorage.setItem(this.getKey(this.CURRENTLY_READING_SUFFIX), JSON.stringify(reading));
+        window.dispatchEvent(new Event('chapters_updated'));
+      }
+    } catch (e) { /* ignore */ }
   }
 
   removeCurrentlyReading(mangaId: string): void {
     try {
-      const reading = JSON.parse(localStorage.getItem(this.getKey(this.CURRENTLY_READING_KEY)) || '{}');
+      const reading = JSON.parse(localStorage.getItem(this.getKey(this.CURRENTLY_READING_SUFFIX)) || '{}');
       delete reading[mangaId];
-      localStorage.setItem(this.getKey(this.CURRENTLY_READING_KEY), JSON.stringify(reading));
+      localStorage.setItem(this.getKey(this.CURRENTLY_READING_SUFFIX), JSON.stringify(reading));
       window.dispatchEvent(new Event('chapters_updated'));
-    } catch (e) {
-      // Erro silencioso em produção
-    }
+    } catch (e) { /* ignore */ }
+  }
+
+  private removeCurrentlyReadingByChapter(chapterId: string): void {
+    try {
+      const key = this.getKey(this.CURRENTLY_READING_SUFFIX);
+      const reading = JSON.parse(localStorage.getItem(key) || '{}');
+      let changed = false;
+      for (const mId in reading) {
+        if (reading[mId] === chapterId) {
+          delete reading[mId];
+          changed = true;
+        }
+      }
+      if (changed) {
+        localStorage.setItem(key, JSON.stringify(reading));
+      }
+    } catch (e) { /* ignore */ }
   }
 }
