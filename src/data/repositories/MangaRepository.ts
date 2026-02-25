@@ -93,10 +93,12 @@ export class MangaRepository implements IMangaRepository {
       offset: params.offset || 0,
       'includes[]': ['cover_art'],
       'contentRating[]': params.contentRating || ['safe', 'suggestive', 'erotica'],
-      'availableTranslatedLanguage[]': ['pt-br', 'pt']
+      'availableTranslatedLanguage[]': ['pt-br', 'pt'],
+      // Filtro crucial: só trazer mangás que tenham pelo menos um capítulo em PT-BR ou PT
+      'hasAvailableChapters': 'true'
     };
 
-    if (isProd) apiParams.path = 'manga'; // Direciona para o endpoint correto no proxy
+    if (isProd) apiParams.path = 'manga';
 
     if (params.query) apiParams.title = params.query;
     if (params.includedTags) apiParams['includedTags[]'] = params.includedTags;
