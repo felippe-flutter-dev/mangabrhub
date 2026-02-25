@@ -3,9 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Coffee, Heart, Globe, Github, ExternalLink } from "lucide-react";
 
 export default function Supporter() {
-  // Usando variáveis de ambiente para segurança e facilidade de configuração
-  const pixKey = import.meta.env.VITE_PIX_KEY || "Chave não configurada";
-  const paymentLink = import.meta.env.VITE_PAYMENT_LINK || "#";
+  const PIX_KEY = "1dc8bd39-88b8-499f-bf49-3d531158f5c8";
+  const PAYMENT_LINK = "https://link.mercadopago.com.br/mangahubapoiadores";
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 space-y-12 min-h-[calc(100vh-4rem)]">
@@ -69,7 +68,7 @@ export default function Supporter() {
           <CardContent className="flex flex-col items-center space-y-6 flex-1">
             <div className="bg-white p-4 rounded-xl border-4 border-muted">
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pixKey)}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(PIX_KEY)}`}
                 alt="QR Code PIX"
                 className="h-48 w-48"
               />
@@ -78,20 +77,20 @@ export default function Supporter() {
             <div className="w-full space-y-2 text-center">
               <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Chave PIX</p>
               <div className="p-3 bg-muted rounded-lg font-mono text-xs break-all select-all border border-dashed border-primary/50">
-                {pixKey}
+                {PIX_KEY}
               </div>
             </div>
 
             <div className="w-full flex flex-col gap-2 mt-auto">
               <Button className="w-full" variant="default" onClick={() => {
-                navigator.clipboard.writeText(pixKey);
+                navigator.clipboard.writeText(PIX_KEY);
                 alert("Chave PIX copiada!");
               }}>
                 Copiar Chave
               </Button>
 
               <Button className="w-full gap-2" variant="outline" asChild>
-                <a href={paymentLink} target="_blank" rel="noreferrer">
+                <a href={PAYMENT_LINK} target="_blank" rel="noreferrer">
                   <ExternalLink className="h-4 w-4" /> Pagar via Mercado Pago
                 </a>
               </Button>
