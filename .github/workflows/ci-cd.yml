@@ -78,7 +78,7 @@ jobs:
   deploy:
     name: Deploy to Firebase
     needs: test-and-merge
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -98,8 +98,8 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_MANGABR_HUB }}'
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MANGABR_HUB }}
           channelId: live
           projectId: mangabr-hub
 
@@ -107,7 +107,7 @@ jobs:
         if: github.ref == 'refs/heads/staging'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_MANGABR_HUB }}'
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MANGABR_HUB }}
           channelId: staging
           projectId: mangabr-hub
