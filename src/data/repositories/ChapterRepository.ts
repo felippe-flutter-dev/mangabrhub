@@ -2,11 +2,12 @@ import { IChapterRepository } from "../../domain/repositories/IChapterRepository
 import { Chapter } from "../../domain/models/Chapter";
 import axios from 'axios';
 
-const API_BASE_URL = 'https://api.mangadex.org';
+const isProd = import.meta.env.PROD;
+const API_BASE_URL = isProd ? '/api/proxy' : 'https://api.mangadex.org';
 
 const client = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 15000,
   headers: {
     'common': {},
     'get': {}
@@ -41,17 +42,29 @@ export class ChapterRepository implements IChapterRepository {
     };
   }
 
+  // Função auxiliar para resolver o path no Proxy da Vercel
+  private getPath(endpoint: string): string {
+    return isProd ? '' : endpoint;
+  }
+
   async getChapter(id: string): Promise<Chapter> {
-    const response = await client.get(`/chapter/${id}`, {
-      params: {
-        "includes[]": "scanlation_group"
-      }
+    const apiParams: any = {};
+    if (isProd) apiParams.path = `chapter/${id}`;
+    apiParams["includes[]"] = "scanlation_group";
+
+    const response = await client.get(this.getPath(`/chapter/${id}`), {
+      params: apiParams
     });
     return this.mapToChapter(response.data.data);
   }
 
   async getChapterPages(id: string): Promise<{ baseUrl: string, hash: string, pages: string[] }> {
-    const response = await client.get(`/at-home/server/${id}`);
+    const apiParams: any = {};
+    if (isProd) apiParams.path = `at-home/server/${id}`;
+
+    const response = await client.get(this.getPath(`/at-home/server/${id}`), {
+      params: apiParams
+    });
     const { baseUrl, chapter } = response.data;
     return {
       baseUrl,
@@ -61,14 +74,18 @@ export class ChapterRepository implements IChapterRepository {
   }
 
   async getMangaChapters(mangaId: string, limit: number = 100, offset: number = 0, order: 'asc' | 'desc' = 'desc'): Promise<{ data: Chapter[], total: number }> {
-    const response = await client.get(`/manga/${mangaId}/feed`, {
-      params: {
-        limit,
-        offset,
-        "order[chapter]": order,
-        "translatedLanguage[]": ['pt-br', 'pt'],
-        "includes[]": ['scanlation_group']
-      }
+    const apiParams: any = {
+      limit,
+      offset,
+      "order[chapter]": order,
+      "translatedLanguage[]": ['pt-br', 'pt'],
+      "includes[]": ['scanlation_group']
+    };
+
+    if (isProd) apiParams.path = `manga/${mangaId}/feed`;
+
+    const response = await client.get(this.getPath(`/manga/${mangaId}/feed`), {
+      params: apiParams
     });
     return {
       data: response.data.data.map(this.mapToChapter),

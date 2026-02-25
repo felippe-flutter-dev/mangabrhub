@@ -2,18 +2,17 @@ import { IMangaRepository, SearchParams } from "../../domain/repositories/IManga
 import { Manga } from "../../domain/models/Manga";
 import axios from 'axios';
 
-const API_BASE_URL = 'https://api.mangadex.org';
+const isProd = import.meta.env.PROD;
+const API_BASE_URL = isProd ? '/api/proxy' : 'https://api.mangadex.org';
 const UPLOADS_BASE_URL = 'https://uploads.mangadex.org';
 
 const client = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
-  // Desativa headers padrão que podem causar pré-vôo (preflight) desnecessário ou bloqueios
+  timeout: 15000,
   headers: {
     'common': {},
     'get': {}
   },
-  // Serializador customizado para manter colchetes [] sem codificação
   paramsSerializer: {
     serialize: (params) => {
       return Object.entries(params)
@@ -49,6 +48,11 @@ export class MangaRepository implements IMangaRepository {
       tags: data.attributes.tags.map((t: any) => t.attributes.name.en),
       availableLanguages: data.attributes.availableTranslatedLanguages || []
     };
+  }
+
+  // Função auxiliar para resolver o path no Proxy da Vercel
+  private getPath(endpoint: string): string {
+    return isProd ? '' : endpoint;
   }
 
   async getPopularMangas(limit: number = 10): Promise<Manga[]> {
@@ -92,6 +96,8 @@ export class MangaRepository implements IMangaRepository {
       'availableTranslatedLanguage[]': ['pt-br', 'pt']
     };
 
+    if (isProd) apiParams.path = 'manga'; // Direciona para o endpoint correto no proxy
+
     if (params.query) apiParams.title = params.query;
     if (params.includedTags) apiParams['includedTags[]'] = params.includedTags;
     if (params.excludedTags) apiParams['excludedTags[]'] = params.excludedTags;
@@ -103,7 +109,7 @@ export class MangaRepository implements IMangaRepository {
       });
     }
 
-    const response = await client.get('/manga', { params: apiParams });
+    const response = await client.get(this.getPath('/manga'), { params: apiParams });
     return {
       data: response.data.data.map((m: any) => this.mapToManga(m)),
       total: response.data.total
@@ -112,10 +118,12 @@ export class MangaRepository implements IMangaRepository {
 
   async getMangaById(id: string): Promise<Manga | null> {
     try {
-      const response = await client.get(`/manga/${id}`, {
-        params: {
-          'includes[]': ['cover_art', 'author', 'artist']
-        }
+      const apiParams: any = {};
+      if (isProd) apiParams.path = `manga/${id}`;
+      apiParams['includes[]'] = ['cover_art', 'author', 'artist'];
+
+      const response = await client.get(this.getPath(`/manga/${id}`), {
+        params: apiParams
       });
       return this.mapToManga(response.data.data);
     } catch (error) {
@@ -124,7 +132,10 @@ export class MangaRepository implements IMangaRepository {
   }
 
   async getTags(): Promise<{ id: string; name: string }[] > {
-    const response = await client.get('/manga/tag');
+    const apiParams: any = {};
+    if (isProd) apiParams.path = 'manga/tag';
+
+    const response = await client.get(this.getPath('/manga/tag'), { params: apiParams });
     return response.data.data.map((tag: any) => ({
       id: tag.id,
       name: tag.attributes.name.en
