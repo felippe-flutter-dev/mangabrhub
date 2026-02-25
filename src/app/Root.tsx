@@ -9,6 +9,7 @@ import { auth, onAuthStateChanged, User as FirebaseUser } from "./lib/firebase";
 import { CookieConsent } from "./components/CookieConsent";
 import { userRepository } from "./di";
 import ScrollToTop from "./components/ScrollToTop";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function Root() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -128,6 +129,7 @@ export default function Root() {
       </div>
       <Toaster />
       <CookieConsent />
+      <Analytics />
     </ThemeProvider>
   );
 }
