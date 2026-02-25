@@ -36,9 +36,11 @@ export default function Search() {
     totalResults
   } = useSearchViewModel(searchParams.get("q") || "");
 
+  // Busca inicial apenas uma vez no carregamento
   useEffect(() => {
-    handleSearch(1);
-  }, [handleSearch]);
+    handleSearch(currentPage);
+     
+  }, []);
 
   const goToPage = useCallback((page: number) => {
     if (page >= 1 && page <= totalPages) {
