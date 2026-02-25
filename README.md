@@ -7,6 +7,7 @@ Uma plataforma de engenharia de software de alto desempenho para exploração e 
 ![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)
 ![TypeScript](https://img.shields.io/badge/typescript-%23007acc.svg?style=for-the-badge&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white)
+![Vercel](https://img.shields.io/badge/vercel-%23000000.svg?style=for-the-badge&logo=vercel&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
 ![shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-000000?style=for-the-badge&logo=shadcnui&logoColor=white)
 ![Firebase](https://img.shields.io/badge/firebase-%23039BE5.svg?style=for-the-badge&logo=firebase)
@@ -20,16 +21,19 @@ Uma plataforma de engenharia de software de alto desempenho para exploração e 
 ### 🏛️ Arquitetura Desacoplada (Clean Architecture)
 O sistema implementa uma separação rigorosa de interesses. Através da **Injeção de Dependência (DI)** centralizada em `src/app/di.ts`, os componentes de UI nunca instanciam serviços ou repositórios diretamente. Isso permite que provedores de dados (MangaDex, Firestore) sejam substituídos sem impactar a lógica visual.
 
+### 🛡️ Proxy Serverless (Vercel) & Bypass de CORS
+Para contornar as restrições de CORS da API do MangaDex em ambiente de produção, implementamos um **Proxy Serverless** via Vercel Functions (`api/proxy.js`). Isso garante que as requisições sejam feitas de servidor para servidor, eliminando bloqueios de segurança do navegador e permitindo o uso de um `User-Agent` customizado para melhor identificação junto à API original.
+
 ### 💾 Mecanismo de Persistência Inteligente
 Implementamos o padrão **StorageService** para gerenciar o estado persistente de forma transparente:
-- **Leitura Local:** Progresso de capítulos e preferências de modo de leitura salvos no `LocalStorage` para acesso instantâneo sem latência de rede.
-- **Sincronização Cloud:** Integração nativa com Firebase Firestore para comentários e listas personalizadas, garantindo que os dados do usuário estejam disponíveis em qualquer dispositivo.
+- **Leitura Local:** Progresso de capítulos e preferências de modo de leitura salvos no `LocalStorage` com disparos de eventos customizados para atualização de UI reativa.
+- **Sincronização Cloud:** Integração nativa com Firebase Firestore para comentários e listas personalizadas sincronizadas entre dispositivos.
 
 ### 🔄 DevOps e Qualidade (Staff Level CI/CD)
-Ciclo de vida automatizado via GitHub Actions garantindo estabilidade:
-- **Linting & Análise:** Verificação estática rigorosa com ESLint para manter a padronização.
-- **Garantia de Qualidade:** Testes unitários e de integração com Vitest cobrindo 100% da lógica de negócio (Use Cases e Repositories).
-- **Continuous Deployment:** Deploy automático para ambientes de **Staging** e **Production** no Firebase Hosting baseado em eventos de Git.
+Ciclo de vida automatizado via GitHub Actions e Vercel:
+- **Linting & Análise:** Verificação estática rigorosa com ESLint integrada ao workflow de push.
+- **Garantia de Qualidade:** Suite de testes unitários e de integração com Vitest validando Repositories e Use Cases.
+- **Continuous Deployment:** Deploy automático via Vercel vinculado diretamente ao GitHub, garantindo que apenas código validado pelos testes chegue em produção.
 
 ---
 
@@ -37,11 +41,11 @@ Ciclo de vida automatizado via GitHub Actions garantindo estabilidade:
 
 O MangaBR Hub oferece uma experiência premium de leitura:
 
-1.  **Busca Multidimensional:** Filtros avançados por gênero, temas (Isekai, Ação, etc.), status da obra e classificação de idade.
+1.  **Busca Multidimensional:** Filtros avançados por gênero, temas, status da obra e classificação de idade.
 2.  **Leitor Camaleão:** Alternância fluida entre modo **Paginado** (tradicional) e modo **Cascata** (scroll infinito estilo webtoon).
-3.  **Memória de Scanlation:** O app "aprende" qual equipe de tradução você prefere e prioriza a mesma scan ao pular para o próximo capítulo.
+3.  **Memória de Scanlation:** O app prioriza automaticamente a sua equipe de tradução favorita ao navegar entre capítulos.
 4.  **Comunidade Integrada:** Sistema de comentários em tempo real por mangá ou por capítulo.
-5.  **Biblioteca Pessoal:** Criação de listas ilimitadas (Lendo, Planejo Ler, Favoritos) sincronizadas na nuvem.
+5.  **Biblioteca Pessoal:** Criação de listas sincronizadas (Lendo, Planejo Ler, Favoritos) via Firebase.
 
 ---
 
@@ -59,7 +63,7 @@ graph TD
     subgraph "Camada de Infra (DATA)"
         RepoImpl[Repositories Implementation]:::data
         Firebase[Firebase SDK]:::data
-        MangaDexAPI[MangaDex API]:::data
+        Proxy[Vercel Proxy API]:::data
     end
 
     subgraph "Camada de Negócio (DOMAIN)"
@@ -79,35 +83,34 @@ graph TD
     UC --> Interfaces
     RepoImpl -- Implementa --> Interfaces
     RepoImpl --> Firebase
-    RepoImpl --> MangaDexAPI
+    RepoImpl --> Proxy
     DI -- Injeta --> RepoImpl
     DI -- Fornece para --> VM
 ```
 
-### 2. Fluxo da Busca de Mangás
-Como uma requisição de busca atravessa o sistema até chegar ao usuário.
+### 2. Fluxo da Busca via Proxy
+Como uma requisição atravessa o proxy para evitar CORS.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant U as Usuário
-    participant V as View (Search.tsx)
-    participant VM as SearchViewModel
-    participant UC as SearchMangasUseCase
+    participant V as View
+    participant VM as ViewModel
     participant R as MangaRepository
-    participant API as API MangaDex
+    participant P as Vercel Proxy (/api/proxy)
+    participant API as MangaDex API
 
-    U->>V: Digita "Solo Leveling"
-    V->>VM: handleSearch(query)
-    VM->>UC: execute(params)
-    UC->>R: searchMangas(params)
-    R->>API: GET /manga?title=...
-    API-->>R: JSON Bruto (Relationships/Attributes)
-    R->>R: Map to Domain Model (Manga)
-    R-->>UC: List<Manga>
-    UC-->>VM: List<Manga>
-    VM->>V: setResults(data) & setLoading(false)
-    V-->>U: Renderiza MangaCards
+    U->>V: Digita Busca
+    V->>VM: Solicita Busca
+    VM->>R: searchMangas(params)
+    R->>P: GET /api/proxy?path=manga&...
+    P->>API: GET api.mangadex.org/manga...
+    API-->>P: JSON Data
+    P-->>R: Resposta Segura (CORS OK)
+    R->>R: Map to Domain Entity
+    R-->>VM: List<Manga>
+    VM-->>V: Update State
 ```
 
 ### 3. Funcionamento do MVVM
@@ -145,17 +148,17 @@ src
 |   \---lib                 # Configuração de Provedores (Firebase)
 |
 +---data                    # Implementação de Infraestrutura
-|   +---repositories        # Acesso a Dados (API/Firebase)
+|   +---repositories        # Acesso a Dados (Proxy/Firebase)
 |   \---services            # Serviços de Sistema (LocalStorage)
 |
 +---domain                  # O Coração do Software (Puro TS)
 |   +---models              # Modelos de Dados e Enums
 |   +---repositories        # Contratos de Dados
 |   +---services            # Contratos de Serviços
-|   \---usecases            # Lógica de Aplicação (Ações do Usuário)
+|   \---usecases            # Lógica de Aplicação
 |
 +---presentation            # Camada de Ligação
-|   \---viewmodels          # Lógica de UI e Gerenciamento de Estado
+|   \---viewmodels          # Lógica de UI e Hooks customizados
 |
 \---test                    # Qualidade e Cobertura (Mocks/Setup)
 ```
@@ -184,18 +187,14 @@ Siga os passos abaixo para rodar o projeto em sua máquina:
 
 4. **Executar Testes (Vitest):**
    ```sh
-   # Rodar todos os testes
    npm run test:run
-
-   # Ver cobertura de código
-   npm run test:coverage
    ```
 
 ---
 
 ## 🤝 Agradecimentos
 
-Este projeto é fruto de um estudo profundo de arquitetura distribuída e UX moderna. Agradecimento especial à equipe do **MangaDex** por manter a melhor API de mangás do mundo.
+Este projeto é fruto de um estudo profundo de arquitetura distribuída e UX moderna. Agradecimento especial à equipe do **MangaDex** pela infraestrutura de API.
 
 ---
 
