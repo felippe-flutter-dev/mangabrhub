@@ -26,12 +26,19 @@ export class ChapterRepository implements IChapterRepository {
   }
 
   async getChapter(id: string): Promise<Chapter> {
-    const response = await client.get(`/chapter/${id}?includes[]=scanlation_group`);
+    const response = await client.get(`/chapter/${id}`, {
+      params: {
+        "includes[]": "scanlation_group"
+      },
+      headers: {} // Garante que nenhum header extra seja enviado
+    });
     return this.mapToChapter(response.data.data);
   }
 
   async getChapterPages(id: string): Promise<{ baseUrl: string, hash: string, pages: string[] }> {
-    const response = await client.get(`/at-home/server/${id}`);
+    const response = await client.get(`/at-home/server/${id}`, {
+      headers: {} // Garante que nenhum header extra seja enviado
+    });
     const { baseUrl, chapter } = response.data;
     return {
       baseUrl,
@@ -45,10 +52,11 @@ export class ChapterRepository implements IChapterRepository {
       params: {
         limit,
         offset,
-        order: { chapter: order },
-        translatedLanguage: ['pt-br', 'pt'],
-        includes: ['scanlation_group']
-      }
+        "order[chapter]": order,
+        "translatedLanguage[]": ['pt-br', 'pt'],
+        "includes[]": ['scanlation_group']
+      },
+      headers: {} // Garante que nenhum header extra seja enviado
     });
     return {
       data: response.data.data.map(this.mapToChapter),

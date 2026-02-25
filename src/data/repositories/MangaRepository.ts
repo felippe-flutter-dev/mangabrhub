@@ -80,7 +80,10 @@ export class MangaRepository implements IMangaRepository {
     if (params.status) apiParams.status = params.status;
     if (params.order) apiParams.order = params.order;
 
-    const response = await client.get('/manga', { params: apiParams });
+    const response = await client.get('/manga', {
+      params: apiParams,
+      headers: {} // Garante que nenhum header extra seja enviado
+    });
     return {
       data: response.data.data.map((m: any) => this.mapToManga(m)),
       total: response.data.total
@@ -92,7 +95,8 @@ export class MangaRepository implements IMangaRepository {
       const response = await client.get(`/manga/${id}`, {
         params: {
           includes: ['cover_art', 'author', 'artist']
-        }
+        },
+        headers: {} // Garante que nenhum header extra seja enviado
       });
       return this.mapToManga(response.data.data);
     } catch (error) {
@@ -101,7 +105,9 @@ export class MangaRepository implements IMangaRepository {
   }
 
   async getTags(): Promise<{ id: string; name: string }[] > {
-    const response = await client.get('/manga/tag');
+    const response = await client.get('/manga/tag', {
+      headers: {} // Garante que nenhum header extra seja enviado
+    });
     return response.data.data.map((tag: any) => ({
       id: tag.id,
       name: tag.attributes.name.en
