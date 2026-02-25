@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Chapter } from "../../domain/models/Chapter";
 import { Manga } from "../../domain/models/Manga";
-import { ChapterRepository } from "../../data/repositories/ChapterRepository";
-import { MangaRepository } from "../../data/repositories/MangaRepository";
+import { chapterRepository, mangaRepository } from "../../app/di";
 
 // --- HELPERS STORAGE ---
 
@@ -10,7 +9,7 @@ const getReadChapters = (): string[] => {
   try {
     const saved = localStorage.getItem('read_chapters');
     return saved ? JSON.parse(saved) : [];
-  } catch (e) { return []; }
+  } catch (_e) { return []; }
 };
 
 const markChapterAsRead = (id: string) => {
@@ -31,12 +30,11 @@ const markChapterAsRead = (id: string) => {
       }
       localStorage.setItem('currently_reading', JSON.stringify(reading));
 
-      // Disparo assíncrono para evitar conflitos com listeners de extensões
       setTimeout(() => {
         window.dispatchEvent(new Event('chapters_updated'));
       }, 0);
     }
-  } catch (err) { /* Erro silencioso em prod */ }
+  } catch (_err) { /* Erro silencioso */ }
 };
 
 const markAsCurrentlyReading = (mangaId: string, chapterId: string) => {
@@ -54,7 +52,7 @@ const markAsCurrentlyReading = (mangaId: string, chapterId: string) => {
         window.dispatchEvent(new Event('chapters_updated'));
       }, 0);
     }
-  } catch (e) { /* Erro silencioso em prod */ }
+  } catch (_e) { /* Erro silencioso */ }
 };
 
 // --- VIEW MODEL ---
@@ -75,44 +73,66 @@ export function useReaderViewModel(chapterId: string | undefined) {
 
   const hasMarkedAsReadThisSession = useRef(false);
 
-  const chapterRepository = new ChapterRepository();
-  const mangaRepository = new MangaRepository();
-
   const loadChapter = useCallback(async (id: string) => {
     if (!id) return;
     setLoading(true);
     hasMarkedAsReadThisSession.current = false;
     try {
+      // 1. Carregar dados do capítulo via Repositório (Usa Proxy na Vercel corretamente)
       const chapData = await chapterRepository.getChapter(id);
       setChapter(chapData);
 
+      // 2. Carregar páginas via Repositório (Usa Proxy na Vercel corretamente)
       const pageData = await chapterRepository.getChapterPages(id);
       setBaseUrl(pageData.baseUrl);
       setHash(pageData.hash);
       setPages(pageData.pages);
       setCurrentPage(0);
 
-      const response = await fetch(`https://api.mangadex.org/chapter/${id}?includes[]=manga&includes[]=scanlation_group`);
+      // 3. Buscar metadados do mangá e relacionamentos via Proxy
+      const isProd = import.meta.env.PROD;
+
+      // Corrigindo a URL do Proxy: Não passamos '?' dentro do path, mas sim como params normais
+      const proxyUrl = isProd
+        ? `/api/proxy?path=chapter/${id}&includes[]=manga&includes[]=scanlation_group`
+        : `https://api.mangadex.org/chapter/${id}?includes[]=manga&includes[]=scanlation_group`;
+
+      const response = await fetch(proxyUrl);
       const json = await response.json();
+
       const mangaRel = json.data.relationships.find((r: any) => r.type === 'manga');
+      const scanRel = json.data.relationships.find((r: any) => r.type === 'scanlation_group');
+      const currentScanName = scanRel?.attributes?.name;
 
       if (mangaRel) {
         const mId = mangaRel.id;
         const mangaData = await mangaRepository.getMangaById(mId);
         setManga(mangaData);
-
         markAsCurrentlyReading(mId, id);
 
-        const feedRes = await fetch(`https://api.mangadex.org/manga/${mId}/feed?translatedLanguage[]=pt-br&translatedLanguage[]=pt&order[chapter]=asc&limit=500&includes[]=scanlation_group`);
+        // 4. Buscar próximo capítulo via Proxy
+        const feedUrl = isProd
+          ? `/api/proxy?path=manga/${mId}/feed&translatedLanguage[]=pt-br&translatedLanguage[]=pt&order[chapter]=asc&limit=500&includes[]=scanlation_group`
+          : `https://api.mangadex.org/manga/${mId}/feed?translatedLanguage[]=pt-br&translatedLanguage[]=pt&order[chapter]=asc&limit=500&includes[]=scanlation_group`;
+
+        const feedRes = await fetch(feedUrl);
         const feedJson = await feedRes.json();
         const allChapters = feedJson.data;
-        const currentNum = parseFloat(json.data.attributes.chapter);
+        const _currentChapterNum = parseFloat(json.data.attributes.chapter);
 
-        const next = allChapters.find((c: any) => parseFloat(c.attributes.chapter) > currentNum);
-        if (next) setNextChapterId(next.id);
+        // Lógica de próximo capítulo (mesma lógica do Repository)
+        const nextChapters = allChapters.filter((c: any) => parseFloat(c.attributes.chapter) > _currentChapterNum);
+        if (nextChapters.length > 0) {
+          const minNextNum = Math.min(...nextChapters.map((c: any) => parseFloat(c.attributes.chapter)));
+          const candidates = nextChapters.filter((c: any) => parseFloat(c.attributes.chapter) === minNextNum);
+          const bestMatch = candidates.find((c: any) =>
+            c.relationships.find((r: any) => r.type === 'scanlation_group')?.attributes?.name === currentScanName
+          ) || candidates[0];
+          setNextChapterId(bestMatch.id);
+        }
       }
-    } catch (err) {
-      setError("Erro ao carregar.");
+    } catch (_err) {
+      setError("Erro ao carregar o capítulo.");
     }
     finally { setLoading(false); }
   }, []);

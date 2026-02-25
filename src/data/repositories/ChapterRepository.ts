@@ -79,7 +79,9 @@ export class ChapterRepository implements IChapterRepository {
       offset,
       "order[chapter]": order,
       "translatedLanguage[]": ['pt-br', 'pt'],
-      "includes[]": ['scanlation_group']
+      "includes[]": ['scanlation_group'],
+      // Inclusão de todos os níveis de conteúdo para evitar que capítulos PT-BR fiquem ocultos
+      "contentRating[]": ['safe', 'suggestive', 'erotica', 'pornographic']
     };
 
     if (isProd) apiParams.path = `manga/${mangaId}/feed`;
