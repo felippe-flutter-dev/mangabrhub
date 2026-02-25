@@ -5,7 +5,7 @@ import { mangaRepository } from "../../app/di";
 import { auth, onAuthStateChanged } from "../../app/lib/firebase";
 
 const BASE_CACHE_KEY = 'search_filters_cache';
-const CACHE_EXPIRATION_MS = 15 * 60 * 1000;
+const CACHE_EXPIRATION_MS = 30 * 60 * 1000; // Aumentado para 30 min para melhor UX
 
 interface CachedFilters {
   query: string;
@@ -21,49 +21,72 @@ export function useSearchViewModel(initialQuery: string = "") {
   const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
   const [user, setUser] = useState<any>(auth.currentUser);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
-    return () => unsubscribe();
-  }, []);
-
   const getCacheKey = useCallback(() => {
-    return `${BASE_CACHE_KEY}_${user?.uid || 'guest'}`;
+    const uid = user?.uid || auth.currentUser?.uid || 'guest';
+    return `${BASE_CACHE_KEY}_${uid}`;
   }, [user]);
 
-  const [query, setQuery] = useState(initialQuery);
-  const [tagSelection, setTagSelection] = useState<Record<string, 'include' | 'exclude' | 'neutral'>>({});
-  const [sortBy, setSortBy] = useState("relevance");
-  const [contentRating, setContentRating] = useState<string[]>(["safe", "suggestive", "erotica"]);
-  const [status, setStatus] = useState<string[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
+  // Função auxiliar para ler o cache de forma síncrona
+  const loadInitialCache = () => {
+    const key = `${BASE_CACHE_KEY}_${auth.currentUser?.uid || 'guest'}`;
+    const cached = localStorage.getItem(key);
+    if (cached) {
+      try {
+        const data: CachedFilters = JSON.parse(cached);
+        if (Date.now() - data.timestamp < CACHE_EXPIRATION_MS) {
+          return data;
+        }
+      } catch (e) { /* ignore */ }
+    }
+    return null;
+  };
+
+  const initialCache = loadInitialCache();
+
+  // Estados inicializados diretamente do cache para evitar "flicker"
+  const [query, setQuery] = useState(initialCache?.query ?? initialQuery);
+  const [tagSelection, setTagSelection] = useState<Record<string, 'include' | 'exclude' | 'neutral'>>(initialCache?.tagSelection ?? {});
+  const [sortBy, setSortBy] = useState(initialCache?.sortBy ?? "relevance");
+  const [contentRating, setContentRating] = useState<string[]>(initialCache?.contentRating ?? ["safe", "suggestive", "erotica"]);
+  const [status, setStatus] = useState<string[]>(initialCache?.status ?? []);
+  const [currentPage, setCurrentPage] = useState(initialCache?.currentPage ?? 1);
+
   const [results, setResults] = useState<Manga[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalResults, setTotalResults] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const limit = 30;
 
-  const performSearch = useCallback(async (page: number, currentFilters: Partial<CachedFilters>) => {
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    mangaRepository.getTags().then(setTags);
+    return () => unsubscribe();
+  }, []);
+
+  const performSearch = useCallback(async (page: number, currentFilters: any) => {
     setLoading(true);
     setError(null);
     try {
       const {
-        tagSelection: tagsSel = tagSelection,
-        sortBy: sort = sortBy,
-        contentRating: rating = contentRating,
-        status: stat = status,
-        query: q = query
+        tagSelection: ts,
+        sortBy: sb,
+        contentRating: cr,
+        status: st,
+        query: q
       } = currentFilters;
 
-      const includedTags = Object.entries(tagsSel).filter(([_t, s]) => s === 'include').map(([id]) => id);
-      const excludedTags = Object.entries(tagsSel).filter(([_t, s]) => s === 'exclude').map(([id]) => id);
+      const includedTags = Object.entries(ts).filter(([, s]) => s === 'include').map(([id]) => id);
+      const excludedTags = Object.entries(ts).filter(([, s]) => s === 'exclude').map(([id]) => id);
 
       const order: Record<string, 'asc' | 'desc'> = {};
-      if (sort === 'relevance') order.relevance = 'desc';
-      else if (sort === 'latest') order.latestUploadedChapter = 'desc';
-      else if (sort === 'oldest') order.latestUploadedChapter = 'asc';
-      else if (sort === 'title') order.title = 'asc';
-      else if (sort === 'rating') order.rating = 'desc';
-      else if (sort === 'followedCount') order.followedCount = 'desc';
+      if (sb === 'relevance') order.relevance = 'desc';
+      else if (sb === 'latest') order.latestUploadedChapter = 'desc';
+      else if (sb === 'oldest') order.latestUploadedChapter = 'asc';
+      else if (sb === 'title') order.title = 'asc';
+      else if (sb === 'rating') order.rating = 'desc';
+      else if (sb === 'followedCount') order.followedCount = 'desc';
 
       const params: SearchParams = {
         query: q || undefined,
@@ -71,8 +94,8 @@ export function useSearchViewModel(initialQuery: string = "") {
         offset: (page - 1) * limit,
         includedTags: includedTags.length > 0 ? includedTags : undefined,
         excludedTags: excludedTags.length > 0 ? excludedTags : undefined,
-        contentRating: rating.length > 0 ? rating : ['safe', 'suggestive'],
-        status: stat.length > 0 ? stat : undefined,
+        contentRating: cr.length > 0 ? cr : ['safe', 'suggestive'],
+        status: st.length > 0 ? st : undefined,
         order
       };
 
@@ -81,53 +104,29 @@ export function useSearchViewModel(initialQuery: string = "") {
       setTotalResults(total);
       setCurrentPage(page);
 
-      // Salva no cache com os filtros usados na busca real
+      // Persistência imediata após sucesso
       const cacheData: CachedFilters = {
         query: q,
-        tagSelection: tagsSel,
-        sortBy: sort,
-        contentRating: rating,
-        status: stat,
+        tagSelection: ts,
+        sortBy: sb,
+        contentRating: cr,
+        status: st,
         currentPage: page,
         timestamp: Date.now()
       };
       localStorage.setItem(getCacheKey(), JSON.stringify(cacheData));
-    } catch (_err) {
+    } catch (e) {
       setError("Erro ao realizar a busca.");
     } finally {
       setLoading(false);
     }
-  }, [query, tagSelection, sortBy, contentRating, status, getCacheKey]);
+  }, [getCacheKey]);
 
-  // Carregar Cache Inicial e DISPARAR busca com os dados do cache
+  // Busca inicial baseada no que foi carregado no estado (seja cache ou inicial)
   useEffect(() => {
-    const cached = localStorage.getItem(getCacheKey());
-    if (cached) {
-      try {
-        const data: CachedFilters = JSON.parse(cached);
-        if (Date.now() - data.timestamp < CACHE_EXPIRATION_MS) {
-          setQuery(data.query);
-          setTagSelection(data.tagSelection);
-          setSortBy(data.sortBy);
-          setContentRating(data.contentRating);
-          setStatus(data.status);
-          setCurrentPage(data.currentPage);
-
-          // Dispara a busca imediatamente com os dados recuperados
-          performSearch(data.currentPage, data);
-        } else {
-          localStorage.removeItem(getCacheKey());
-          performSearch(1, {});
-        }
-      } catch (_e) {
-        localStorage.removeItem(getCacheKey());
-        performSearch(1, {});
-      }
-    } else {
-      performSearch(1, {});
-    }
-    mangaRepository.getTags().then(setTags);
-  }, [user, getCacheKey]); // Somente no mount ou troca de user
+    performSearch(currentPage, { query, tagSelection, sortBy, contentRating, status });
+     
+  }, [user]);
 
   const toggleTag = (id: string) => {
     setTagSelection(prev => {
@@ -136,11 +135,12 @@ export function useSearchViewModel(initialQuery: string = "") {
       if (current === 'neutral') next = 'include';
       else if (current === 'include') next = 'exclude';
       else next = 'neutral';
-      if (next === 'neutral') {
-        const { [id]: _removed, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [id]: next };
+
+      const newSelection = { ...prev };
+      if (next === 'neutral') delete newSelection[id];
+      else newSelection[id] = next;
+
+      return newSelection;
     });
   };
 
@@ -149,21 +149,12 @@ export function useSearchViewModel(initialQuery: string = "") {
     results, loading, error, contentRating, setContentRating, status, setStatus,
     handleSearch: (page: number) => performSearch(page, { query, tagSelection, sortBy, contentRating, status }),
     clearFilters: () => {
-      const defaultFilters = {
-        query: "",
-        tagSelection: {},
-        sortBy: "relevance",
-        contentRating: ["safe", "suggestive", "erotica"],
-        status: []
-      };
-      setTagSelection(defaultFilters.tagSelection);
-      setQuery(defaultFilters.query);
-      setSortBy(defaultFilters.sortBy);
-      setContentRating(defaultFilters.contentRating);
-      setStatus(defaultFilters.status);
+      const defaults = { query: "", tagSelection: {}, sortBy: "relevance", contentRating: ["safe", "suggestive", "erotica"], status: [] };
+      setQuery(defaults.query); setTagSelection(defaults.tagSelection); setSortBy(defaults.sortBy);
+      setContentRating(defaults.contentRating); setStatus(defaults.status);
       setCurrentPage(1);
       localStorage.removeItem(getCacheKey());
-      performSearch(1, defaultFilters);
+      performSearch(1, defaults);
     },
     currentPage, totalResults, limit,
     totalPages: Math.ceil(totalResults / limit)
