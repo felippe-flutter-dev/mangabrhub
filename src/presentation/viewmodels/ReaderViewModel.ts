@@ -1,63 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Chapter } from "../../domain/models/Chapter";
 import { Manga } from "../../domain/models/Manga";
-import { chapterRepository, mangaRepository } from "../../app/di";
+import { chapterRepository, mangaRepository, storageService } from "../../app/di";
 
-// --- HELPERS STORAGE ---
+const isProd = import.meta.env.PROD;
 
-const getReadChapters = (): string[] => {
-  try {
-    const saved = localStorage.getItem('read_chapters');
-    return saved ? JSON.parse(saved) : [];
-  } catch (_e) { return []; }
-};
-
-const markChapterAsRead = (id: string) => {
-  if (!id) return;
-  try {
-    const read = getReadChapters();
-    if (!read.includes(id)) {
-      read.push(id);
-      localStorage.setItem('read_chapters', JSON.stringify(read));
-
-      // Limpeza do "Lendo"
-      const reading = JSON.parse(localStorage.getItem('currently_reading') || '{}');
-      for (const mId in reading) {
-        if (reading[mId] === id) {
-          delete reading[mId];
-          break;
-        }
-      }
-      localStorage.setItem('currently_reading', JSON.stringify(reading));
-
-      setTimeout(() => {
-        window.dispatchEvent(new Event('chapters_updated'));
-      }, 0);
-    }
-  } catch (_err) { /* Erro silencioso */ }
-};
-
-const markAsCurrentlyReading = (mangaId: string, chapterId: string) => {
-  if (!mangaId || !chapterId) return;
-  try {
-    const read = getReadChapters();
-    if (read.includes(chapterId)) return;
-
-    const reading = JSON.parse(localStorage.getItem('currently_reading') || '{}');
-    if (reading[mangaId] !== chapterId) {
-      reading[mangaId] = chapterId;
-      localStorage.setItem('currently_reading', JSON.stringify(reading));
-
-      setTimeout(() => {
-        window.dispatchEvent(new Event('chapters_updated'));
-      }, 0);
-    }
-  } catch (_e) { /* Erro silencioso */ }
-};
-
-// --- VIEW MODEL ---
-
-export function useReaderViewModel(chapterId: string | undefined) {
+export function useReaderViewModel(chapterId: string | undefined, _userUid: string = 'guest') {
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [manga, setManga] = useState<Manga | null>(null);
   const [pages, setPages] = useState<string[]>([]);
@@ -70,97 +18,76 @@ export function useReaderViewModel(chapterId: string | undefined) {
   );
   const [currentPage, setCurrentPage] = useState(0);
   const [nextChapterId, setNextChapterId] = useState<string | null>(null);
+  const [prevChapterId, setPrevChapterId] = useState<string | null>(null);
 
   const hasMarkedAsReadThisSession = useRef(false);
 
-  const loadChapter = useCallback(async (id: string) => {
-    if (!id) return;
+  const loadChapterData = useCallback(async (id: string) => {
     setLoading(true);
+    setError(null);
     hasMarkedAsReadThisSession.current = false;
-    try {
-      // 1. Carregar dados do capítulo via Repositório (Usa Proxy na Vercel corretamente)
-      const chapData = await chapterRepository.getChapter(id);
-      setChapter(chapData);
 
-      // 2. Carregar páginas via Repositório (Usa Proxy na Vercel corretamente)
-      const pageData = await chapterRepository.getChapterPages(id);
+    try {
+      const [chapData, pageData] = await Promise.all([
+        chapterRepository.getChapter(id),
+        chapterRepository.getChapterPages(id)
+      ]);
+
+      setChapter(chapData);
       setBaseUrl(pageData.baseUrl);
       setHash(pageData.hash);
       setPages(pageData.pages);
       setCurrentPage(0);
 
-      // 3. Buscar metadados do mangá e relacionamentos via Proxy
-      const isProd = import.meta.env.PROD;
+      const proxyPath = `chapter/${id}?includes[]=manga&includes[]=scanlation_group`;
+      const url = isProd ? `/api/proxy?path=${proxyPath}` : `https://api.mangadex.org/${proxyPath}`;
 
-      // Corrigindo a URL do Proxy: Não passamos '?' dentro do path, mas sim como params normais
-      const proxyUrl = isProd
-        ? `/api/proxy?path=chapter/${id}&includes[]=manga&includes[]=scanlation_group`
-        : `https://api.mangadex.org/chapter/${id}?includes[]=manga&includes[]=scanlation_group`;
-
-      const response = await fetch(proxyUrl);
+      const response = await fetch(url);
       const json = await response.json();
 
       const mangaRel = json.data.relationships.find((r: any) => r.type === 'manga');
-      const scanRel = json.data.relationships.find((r: any) => r.type === 'scanlation_group');
-      const currentScanName = scanRel?.attributes?.name;
-
       if (mangaRel) {
         const mId = mangaRel.id;
         const mangaData = await mangaRepository.getMangaById(mId);
         setManga(mangaData);
-        markAsCurrentlyReading(mId, id);
+        storageService.setCurrentlyReading(mId, id);
 
-        // 4. Buscar próximo capítulo via Proxy
-        const feedUrl = isProd
-          ? `/api/proxy?path=manga/${mId}/feed&translatedLanguage[]=pt-br&translatedLanguage[]=pt&order[chapter]=asc&limit=500&includes[]=scanlation_group`
-          : `https://api.mangadex.org/manga/${mId}/feed?translatedLanguage[]=pt-br&translatedLanguage[]=pt&order[chapter]=asc&limit=500&includes[]=scanlation_group`;
-
+        const feedPath = `manga/${mId}/feed?translatedLanguage[]=pt-br&translatedLanguage[]=pt&order[chapter]=asc&limit=500&includes[]=scanlation_group`;
+        const feedUrl = isProd ? `/api/proxy?path=${encodeURIComponent(feedPath)}` : `https://api.mangadex.org/${feedPath}`;
         const feedRes = await fetch(feedUrl);
         const feedJson = await feedRes.json();
         const allChapters = feedJson.data;
-        const _currentChapterNum = parseFloat(json.data.attributes.chapter);
+        const currentNum = parseFloat(json.data.attributes.chapter);
 
-        // Lógica de próximo capítulo (mesma lógica do Repository)
-        const nextChapters = allChapters.filter((c: any) => parseFloat(c.attributes.chapter) > _currentChapterNum);
-        if (nextChapters.length > 0) {
-          const minNextNum = Math.min(...nextChapters.map((c: any) => parseFloat(c.attributes.chapter)));
-          const candidates = nextChapters.filter((c: any) => parseFloat(c.attributes.chapter) === minNextNum);
-          const bestMatch = candidates.find((c: any) =>
-            c.relationships.find((r: any) => r.type === 'scanlation_group')?.attributes?.name === currentScanName
-          ) || candidates[0];
-          setNextChapterId(bestMatch.id);
-        }
+        const next = allChapters.find((c: any) => parseFloat(c.attributes.chapter) > currentNum);
+        setNextChapterId(next?.id || null);
+
+        const prev = allChapters.reverse().find((c: any) => parseFloat(c.attributes.chapter) < currentNum);
+        setPrevChapterId(prev?.id || null);
       }
     } catch (_err) {
-      setError("Erro ao carregar o capítulo.");
+      setError("Falha ao carregar capítulo.");
+    } finally {
+      setLoading(false);
     }
-    finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
-    if (chapterId) loadChapter(chapterId);
-  }, [chapterId, loadChapter]);
-
-  useEffect(() => {
-    if (mode === 'paged' && pages.length > 0 && currentPage === pages.length - 1 && !hasMarkedAsReadThisSession.current) {
-      if (chapterId) {
-        markChapterAsRead(chapterId);
-        hasMarkedAsReadThisSession.current = true;
-      }
-    }
-  }, [currentPage, pages.length, mode, chapterId]);
+    if (chapterId) loadChapterData(chapterId);
+  }, [chapterId, loadChapterData]);
 
   const handleMarkAsRead = useCallback(() => {
     if (chapterId && !hasMarkedAsReadThisSession.current) {
-       markChapterAsRead(chapterId);
+       storageService.markChapterAsRead(chapterId);
        hasMarkedAsReadThisSession.current = true;
     }
   }, [chapterId]);
 
   return {
     chapter, manga, pages, loading, error, mode, setMode,
-    currentPage, setCurrentPage, nextChapterId,
+    currentPage, setCurrentPage, nextChapterId, prevChapterId,
     constructPageUrl: (p: string) => `${baseUrl}/data/${hash}/${p}`,
-    markAsRead: handleMarkAsRead
+    markAsRead: handleMarkAsRead,
+    reload: () => chapterId && loadChapterData(chapterId)
   };
 }

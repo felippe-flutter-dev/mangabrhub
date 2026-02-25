@@ -46,7 +46,7 @@ describe("Reader Navigation", () => {
       </MemoryRouter>
     );
 
-    // Agora buscando pelo aria-label que adicionei
+    // O botão agora é buscado por aria-label "Voltar"
     const backButton = screen.getByLabelText("Voltar");
     fireEvent.click(backButton);
 
@@ -57,7 +57,7 @@ describe("Reader Navigation", () => {
     (useReaderViewModel as any).mockReturnValue({
       manga: null,
       chapter: null,
-      pages: [],
+      pages: ["p1.jpg"],
       loading: false,
       error: null,
       mode: "paged",
