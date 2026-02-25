@@ -78,7 +78,7 @@ jobs:
   deploy:
     name: Deploy to Firebase
     needs: test-and-merge
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
