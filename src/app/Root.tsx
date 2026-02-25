@@ -1,19 +1,27 @@
 import { Outlet, Link } from "react-router";
 import { ThemeProvider } from "./components/theme-provider";
 import { ModeToggle } from "./components/theme-toggle";
-import { Search as SearchIcon, User, BookOpen } from "lucide-react";
+import { Search as SearchIcon, User, BookOpen, Coffee, Flame } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Toaster } from "./components/ui/sonner";
 import { useEffect, useState } from "react";
 import { auth, onAuthStateChanged, User as FirebaseUser } from "./lib/firebase";
 import { CookieConsent } from "./components/CookieConsent";
+import { userRepository } from "./di";
 
 export default function Root() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [role, setRole] = useState<'user' | 'supporter' | 'admin'>('user');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        const profile = await userRepository.getUserProfile(currentUser.uid);
+        if (profile) setRole(profile.role);
+      } else {
+        setRole('user');
+      }
     });
 
     return () => unsubscribe();
@@ -45,6 +53,21 @@ export default function Root() {
                   Minha Biblioteca
                 </Link>
               )}
+              {role === 'supporter' || role === 'admin' ? (
+                <Link
+                  to="/adult"
+                  className="transition-colors hover:text-primary text-orange-500 font-bold flex items-center gap-1"
+                >
+                  <Flame className="h-4 w-4" /> Espaço Adulto
+                </Link>
+              ) : (
+                <Link
+                  to="/supporter"
+                  className="transition-colors hover:text-primary text-muted-foreground flex items-center gap-1"
+                >
+                  <Coffee className="h-4 w-4" /> Café?
+                </Link>
+              )}
             </nav>
             <div className="flex flex-1 items-center justify-end space-x-2">
               <div className="w-full flex-1 md:w-auto md:flex-none">
@@ -63,7 +86,7 @@ export default function Root() {
                       <img
                         src={user.photoURL}
                         alt={user.displayName || "Usuário"}
-                        className="h-6 w-6 rounded-full"
+                        className="h-6 w-6 rounded-full border-2 border-primary/20"
                       />
                     ) : (
                       <User className="h-5 w-5" />

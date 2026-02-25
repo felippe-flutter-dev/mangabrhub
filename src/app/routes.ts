@@ -6,6 +6,8 @@ import MangaDetails from "./pages/MangaDetails";
 import Reader from "./pages/Reader";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
+import Supporter from "./pages/Supporter";
+import AdultSearch from "./pages/AdultSearch";
 
 export const router = createBrowserRouter([
   {
@@ -35,6 +37,14 @@ export const router = createBrowserRouter([
       {
         path: "login",
         Component: Login,
+      },
+      {
+        path: "supporter",
+        Component: Supporter,
+      },
+      {
+        path: "adult",
+        Component: AdultSearch,
       },
     ],
   },
