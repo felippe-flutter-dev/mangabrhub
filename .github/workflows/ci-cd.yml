@@ -1,0 +1,113 @@
+name: MBH CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - 'dev/MBH-**'
+      - 'staging'
+      - 'main'
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+
+jobs:
+  test-and-merge:
+    name: Test and Auto-Merge
+    runs-on: ubuntu-latest
+    if: |
+      github.ref != 'refs/heads/main' || 
+      (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'Merge'))
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check Branch Naming
+        run: |
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          if [[ "$BRANCH_NAME" == "main" || "$BRANCH_NAME" == "staging" ]]; then
+            echo "Branch protegida '$BRANCH_NAME' detectada. Ignorando padrão."
+            exit 0
+          fi
+          
+          if [[ ! $BRANCH_NAME =~ ^dev/MBH-[0-9]{3}_.*$ ]]; then
+            echo "Erro: A branch '$BRANCH_NAME' deve seguir o padrão dev/MBH-xxx_nome"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Linter Analysis
+        run: npm run lint
+
+      - name: Run Vitest
+        run: npm run test:run
+
+      - name: Merge Dev to Staging
+        if: startsWith(github.ref, 'refs/heads/dev/')
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin staging
+          git checkout staging
+          git merge $GITHUB_SHA --no-edit
+          git push origin staging
+
+      - name: Merge Staging to Main
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          git merge $GITHUB_SHA --no-edit
+          git push origin main
+
+  deploy:
+    name: Deploy to Firebase
+    needs: test-and-merge
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install & Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy Live (Main)
+        if: github.ref == 'refs/heads/main'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_MANGABR_HUB }}'
+          channelId: live
+          projectId: mangabr-hub
+
+      - name: Deploy Preview (Staging)
+        if: github.ref == 'refs/heads/staging'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_MANGABR_HUB }}'
+          channelId: staging
+          projectId: mangabr-hub
