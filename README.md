@@ -133,6 +133,27 @@ stateDiagram-v2
 
 ---
 
+## ☕ Apoie o Projeto
+
+O MangaBR Hub é um projeto **Open Source** e sem fins lucrativos. Sua ajuda garante que continuemos no ar, sem anúncios e com alta performance.
+
+Cada doação é reinvestida integralmente na infraestrutura (API do MangaDex, Servidores e Proxy).
+
+### Doe via PIX
+Escaneie o QR Code abaixo ou utilize a chave copia e cola.
+
+<div align="center">
+  <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=1dc8bd39-88b8-499f-bf49-3d531158f5c8" alt="QR Code PIX" />
+  <br />
+  <code>1dc8bd39-88b8-499f-bf49-3d531158f5c8</code>
+  <br /><br />
+  <a href="https://link.mercadopago.com.br/mangahubapoiadores">
+    <img src="https://img.shields.io/badge/Pagar%20via-Mercado%20Pago-blue?style=for-the-badge&logo=mercadopago" alt="Mercado Pago" />
+  </a>
+</div>
+
+---
+
 ## 📂 Estrutura do Diretório `src`
 
 ```text
@@ -187,7 +208,11 @@ Siga os passos abaixo para rodar o projeto em sua máquina:
 
 4. **Executar Testes (Vitest):**
    ```sh
+   # Rodar todos os testes
    npm run test:run
+
+   # Ver cobertura de código
+   npm run test:coverage
    ```
 
 ---
