@@ -7,6 +7,22 @@ const API_BASE_URL = 'https://api.mangadex.org';
 const client = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
+  headers: {
+    'common': {},
+    'get': {}
+  },
+  paramsSerializer: {
+    serialize: (params) => {
+      return Object.entries(params)
+        .map(([key, value]) => {
+          if (Array.isArray(value)) {
+            return value.map(v => `${key}=${v}`).join('&');
+          }
+          return `${key}=${value}`;
+        })
+        .join('&');
+    }
+  }
 });
 
 export class ChapterRepository implements IChapterRepository {
@@ -29,16 +45,13 @@ export class ChapterRepository implements IChapterRepository {
     const response = await client.get(`/chapter/${id}`, {
       params: {
         "includes[]": "scanlation_group"
-      },
-      headers: {} // Garante que nenhum header extra seja enviado
+      }
     });
     return this.mapToChapter(response.data.data);
   }
 
   async getChapterPages(id: string): Promise<{ baseUrl: string, hash: string, pages: string[] }> {
-    const response = await client.get(`/at-home/server/${id}`, {
-      headers: {} // Garante que nenhum header extra seja enviado
-    });
+    const response = await client.get(`/at-home/server/${id}`);
     const { baseUrl, chapter } = response.data;
     return {
       baseUrl,
@@ -55,8 +68,7 @@ export class ChapterRepository implements IChapterRepository {
         "order[chapter]": order,
         "translatedLanguage[]": ['pt-br', 'pt'],
         "includes[]": ['scanlation_group']
-      },
-      headers: {} // Garante que nenhum header extra seja enviado
+      }
     });
     return {
       data: response.data.data.map(this.mapToChapter),

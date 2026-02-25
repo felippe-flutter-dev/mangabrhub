@@ -8,6 +8,24 @@ const UPLOADS_BASE_URL = 'https://uploads.mangadex.org';
 const client = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
+  // Desativa headers padrão que podem causar pré-vôo (preflight) desnecessário ou bloqueios
+  headers: {
+    'common': {},
+    'get': {}
+  },
+  // Serializador customizado para manter colchetes [] sem codificação
+  paramsSerializer: {
+    serialize: (params) => {
+      return Object.entries(params)
+        .map(([key, value]) => {
+          if (Array.isArray(value)) {
+            return value.map(v => `${key}=${v}`).join('&');
+          }
+          return `${key}=${value}`;
+        })
+        .join('&');
+    }
+  }
 });
 
 export class MangaRepository implements IMangaRepository {
@@ -69,21 +87,23 @@ export class MangaRepository implements IMangaRepository {
     const apiParams: any = {
       limit: params.limit || 20,
       offset: params.offset || 0,
-      includes: ['cover_art'],
-      contentRating: params.contentRating || ['safe', 'suggestive', 'erotica'],
-      availableTranslatedLanguage: ['pt-br', 'pt']
+      'includes[]': ['cover_art'],
+      'contentRating[]': params.contentRating || ['safe', 'suggestive', 'erotica'],
+      'availableTranslatedLanguage[]': ['pt-br', 'pt']
     };
 
     if (params.query) apiParams.title = params.query;
-    if (params.includedTags) apiParams.includedTags = params.includedTags;
-    if (params.excludedTags) apiParams.excludedTags = params.excludedTags;
-    if (params.status) apiParams.status = params.status;
-    if (params.order) apiParams.order = params.order;
+    if (params.includedTags) apiParams['includedTags[]'] = params.includedTags;
+    if (params.excludedTags) apiParams['excludedTags[]'] = params.excludedTags;
+    if (params.status) apiParams['status[]'] = params.status;
 
-    const response = await client.get('/manga', {
-      params: apiParams,
-      headers: {} // Garante que nenhum header extra seja enviado
-    });
+    if (params.order) {
+      Object.entries(params.order).forEach(([key, val]) => {
+        apiParams[`order[${key}]`] = val;
+      });
+    }
+
+    const response = await client.get('/manga', { params: apiParams });
     return {
       data: response.data.data.map((m: any) => this.mapToManga(m)),
       total: response.data.total
@@ -94,9 +114,8 @@ export class MangaRepository implements IMangaRepository {
     try {
       const response = await client.get(`/manga/${id}`, {
         params: {
-          includes: ['cover_art', 'author', 'artist']
-        },
-        headers: {} // Garante que nenhum header extra seja enviado
+          'includes[]': ['cover_art', 'author', 'artist']
+        }
       });
       return this.mapToManga(response.data.data);
     } catch (error) {
@@ -105,9 +124,7 @@ export class MangaRepository implements IMangaRepository {
   }
 
   async getTags(): Promise<{ id: string; name: string }[] > {
-    const response = await client.get('/manga/tag', {
-      headers: {} // Garante que nenhum header extra seja enviado
-    });
+    const response = await client.get('/manga/tag');
     return response.data.data.map((tag: any) => ({
       id: tag.id,
       name: tag.attributes.name.en
