@@ -174,7 +174,7 @@ export default function Search() {
           <div className="space-y-2">
             <label className="text-sm font-medium">Classificação de Conteúdo</label>
             <div className="flex flex-wrap gap-2">
-              {Object.values(ContentRating).filter(r => r !== ContentRating.PORNOGRAPHIC).map(r => (
+              {Object.values(ContentRating).map(r => (
                 <Badge 
                   key={r}
                   variant={contentRating.includes(r) ? "default" : "outline"}
