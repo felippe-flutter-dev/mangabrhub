@@ -102,6 +102,7 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MANGABR_HUB }}
           channelId: live
           projectId: mangabr-hub
+          target: mangabrhub
 
       - name: Deploy Preview (Staging)
         if: github.ref == 'refs/heads/staging'
@@ -111,3 +112,4 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MANGABR_HUB }}
           channelId: staging
           projectId: mangabr-hub
+          target: mangabrhub
