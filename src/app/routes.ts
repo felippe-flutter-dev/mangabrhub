@@ -8,6 +8,7 @@ import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Supporter from "./pages/Supporter";
 import AdultSearch from "./pages/AdultSearch";
+import About from "./pages/About";
 
 export const router = createBrowserRouter([
   {
@@ -45,6 +46,10 @@ export const router = createBrowserRouter([
       {
         path: "adult",
         Component: AdultSearch,
+      },
+      {
+        path: "about",
+        Component: About,
       },
     ],
   },
