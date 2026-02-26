@@ -13,9 +13,12 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
   const [hash, setHash] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Recupera a preferência de modo do LocalStorage (Global)
   const [mode, setMode] = useState<'paged' | 'scroll'>(() =>
     (localStorage.getItem('reader_mode') as any) || 'paged'
   );
+
   const [currentPage, setCurrentPage] = useState(0);
   const [nextChapterId, setNextChapterId] = useState<string | null>(null);
   const [prevChapterId, setPrevChapterId] = useState<string | null>(null);
@@ -59,10 +62,12 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
         const allChapters = feedJson.data;
         const currentNum = parseFloat(json.data.attributes.chapter);
 
+        // Busca próximo capítulo
         const next = allChapters.find((c: any) => parseFloat(c.attributes.chapter) > currentNum);
         setNextChapterId(next?.id || null);
 
-        const prev = allChapters.reverse().find((c: any) => parseFloat(c.attributes.chapter) < currentNum);
+        // Busca capítulo anterior (evitando mutar o array original com reverse)
+        const prev = [...allChapters].reverse().find((c: any) => parseFloat(c.attributes.chapter) < currentNum);
         setPrevChapterId(prev?.id || null);
       }
     } catch (_err) {
@@ -76,6 +81,12 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
     if (chapterId) loadChapterData(chapterId);
   }, [chapterId, loadChapterData]);
 
+  // Persiste a preferência de modo globalmente
+  const updateMode = (newMode: 'paged' | 'scroll') => {
+    setMode(newMode);
+    localStorage.setItem('reader_mode', newMode);
+  };
+
   const handleMarkAsRead = useCallback(() => {
     if (chapterId && !hasMarkedAsReadThisSession.current) {
        storageService.markChapterAsRead(chapterId);
@@ -84,7 +95,8 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
   }, [chapterId]);
 
   return {
-    chapter, manga, pages, loading, error, mode, setMode,
+    chapter, manga, pages, loading, error,
+    mode, setMode: updateMode,
     currentPage, setCurrentPage, nextChapterId, prevChapterId,
     constructPageUrl: (p: string) => `${baseUrl}/data/${hash}/${p}`,
     markAsRead: handleMarkAsRead,

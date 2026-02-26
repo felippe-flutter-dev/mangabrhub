@@ -52,8 +52,12 @@ export default function Reader() {
     }
   }, [loadedCount, pages.length, isReadyToObserve]);
 
+  // GATILHO DE LEITURA UNIFICADO E INTELIGENTE
   useEffect(() => {
-    if (mode !== 'scroll' || !isReadyToObserve || !bottomSentinelRef.current) return;
+    if (pages.length === 0 || !bottomSentinelRef.current || !isReadyToObserve) return;
+
+    // No modo PAGINADO, o sensor só deve agir se estivermos na última página
+    if (mode === 'paged' && currentPage !== pages.length - 1) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -61,12 +65,15 @@ export default function Reader() {
           markAsRead();
         }
       },
-      { threshold: 0.1, rootMargin: '100px' }
+      {
+        threshold: 0.1,
+        rootMargin: '50px' // Reduzido para evitar disparos acidentais no topo
+      }
     );
 
     observer.observe(bottomSentinelRef.current);
     return () => observer.disconnect();
-  }, [mode, isReadyToObserve, markAsRead, chapterId]);
+  }, [mode, pages.length, markAsRead, chapterId, currentPage, isReadyToObserve]);
 
   const handleScroll = useCallback(() => {
     if (!mainRef.current || mode === 'paged') return;
@@ -84,10 +91,8 @@ export default function Reader() {
     setIsReadyToObserve(false);
   }, [chapterId, currentPage]);
 
-  // Função para voltar com segurança (Estilo Flutter Pop)
   const handleBack = useCallback(() => {
     if (manga?.id) {
-      // Substitui a rota do leitor pela do mangá para limpar a stack
       navigate(`/manga/${manga.id}`, { replace: true });
     } else {
       navigate(-1);
@@ -95,23 +100,22 @@ export default function Reader() {
   }, [manga?.id, navigate]);
 
   const goPrev = useCallback(() => {
-    if (currentPage > 0) {
+    if (mode === 'paged' && currentPage > 0) {
       setCurrentPage(p => p - 1);
     } else if (prevChapterId) {
-      // Substitui a rota do capítulo atual pelo anterior
       navigate(`/read/${prevChapterId}`, { replace: true });
     }
-  }, [currentPage, prevChapterId, navigate, setCurrentPage]);
+  }, [mode, currentPage, prevChapterId, navigate, setCurrentPage]);
 
   const goNext = useCallback(() => {
-    if (currentPage < pages.length - 1) {
+    if (mode === 'paged' && currentPage < pages.length - 1) {
       setCurrentPage(p => p + 1);
-    } else if (nextChapterId) {
+    }
+    else if (nextChapterId) {
       markAsRead();
-      // Substitui a rota do capítulo atual pelo próximo
       navigate(`/read/${nextChapterId}`, { replace: true });
     }
-  }, [currentPage, pages.length, nextChapterId, navigate, markAsRead, setCurrentPage]);
+  }, [mode, currentPage, pages.length, nextChapterId, navigate, markAsRead, setCurrentPage]);
 
   const handlePageClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (mode === 'scroll') return;
@@ -174,7 +178,6 @@ export default function Reader() {
                onLoad={() => {
                  setIsImageLoading(false);
                  setLoadedCount(prev => prev + 1);
-                 if (currentPage === pages.length - 1) markAsRead();
                }}
                referrerPolicy="no-referrer"
              />
@@ -194,25 +197,30 @@ export default function Reader() {
                referrerPolicy="no-referrer"
              />
            ))}
-           <div className="p-8 space-y-8 max-w-lg mx-auto">
-             <div className="flex flex-col gap-4">
-               {nextChapterId && (
-                 <Button size="lg" className="w-full h-16 text-lg rounded-2xl shadow-lg" onClick={goNext}>
-                   Próximo Capítulo <ArrowRight className="ml-2 h-4 w-4" />
-                 </Button>
-               )}
-               <Button variant="outline" size="lg" className="w-full h-14 rounded-2xl" onClick={handleBack}>
-                 Voltar para o Mangá
-               </Button>
-             </div>
-             <div className="pt-12 border-t border-primary/10">{chapterId && <CommentSection type="chapter" id={chapterId} />}</div>
-             <div ref={bottomSentinelRef} className="h-32 w-full flex items-center justify-center border-t border-dashed mt-10">
-                <div className="flex flex-col items-center gap-2 text-muted-foreground/40 font-bold uppercase tracking-widest text-[10px]">
-                   <div className="h-1 w-12 bg-current rounded-full" />
-                   <span>Fim do Capítulo</span>
-                </div>
-             </div>
-           </div>
+         </div>
+
+         {/* ÁREA DE RODAPÉ (Comum a ambos os modos, mas só aparece no fim) */}
+         <div className={cn("p-8 space-y-8 max-w-lg mx-auto", (mode === 'paged' && currentPage !== pages.length - 1) && "hidden")}>
+            <div className="flex flex-col gap-4">
+              {nextChapterId && (
+                <Button size="lg" className="w-full h-16 text-lg rounded-2xl shadow-lg" onClick={goNext}>
+                  Próximo Capítulo <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              )}
+              <Button variant="outline" size="lg" className="w-full h-14 rounded-2xl" onClick={handleBack}>
+                Voltar para o Mangá
+              </Button>
+            </div>
+
+            {/* SENTINEL: Detecta o fim real do conteúdo */}
+            <div ref={bottomSentinelRef} className="h-32 w-full flex items-center justify-center border-t border-dashed mt-10">
+               <div className="flex flex-col items-center gap-2 text-muted-foreground/40 font-bold uppercase tracking-widest text-[10px]">
+                  <div className="h-1 w-12 bg-current rounded-full" />
+                  <span>Fim do Capítulo</span>
+               </div>
+            </div>
+
+            <div className="pt-12 border-t border-primary/10">{chapterId && <CommentSection type="chapter" id={chapterId} />}</div>
          </div>
       </main>
     </div>

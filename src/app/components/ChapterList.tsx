@@ -108,7 +108,8 @@ export function ChapterList({ mangaId }: ChapterListProps) {
                               </TableCell>
                               <TableCell className="text-right py-2 pr-4">
                                 <Button asChild size="sm" variant={reading ? "default" : (read ? "ghost" : "secondary")} className={`h-7 text-xs ${reading ? 'bg-blue-600' : ''}`}>
-                                  <Link to={`/read/${version.id}`}>
+                                  {/* Entrada no capítulo com REPLACE para evitar empilhamento infinito no histórico */}
+                                  <Link to={`/read/${version.id}`} replace>
                                     {reading ? "Continuar" : (read ? "Reler" : "Ler")}
                                   </Link>
                                 </Button>
