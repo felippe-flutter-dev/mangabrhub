@@ -49,7 +49,7 @@ export default function Supporter() {
               </p>
 
               <Button variant="outline" className="w-full gap-2" asChild>
-                <a href="https://github.com/felippe-flutter-dev/mangabr-hub" target="_blank" rel="noreferrer">
+                <a href="https://github.com/felippe-flutter-dev/mangabrhub" target="_blank" rel="noreferrer">
                   <Github className="h-4 w-4" /> Ver Código no GitHub
                 </a>
               </Button>
