@@ -84,26 +84,55 @@ export default function Reader() {
     setIsReadyToObserve(false);
   }, [chapterId, currentPage]);
 
+  // Função para voltar com segurança (Estilo Flutter Pop)
   const handleBack = useCallback(() => {
-    if (manga?.id) navigate(`/manga/${manga.id}`);
-    else navigate(-1);
+    if (manga?.id) {
+      // Substitui a rota do leitor pela do mangá para limpar a stack
+      navigate(`/manga/${manga.id}`, { replace: true });
+    } else {
+      navigate(-1);
+    }
   }, [manga?.id, navigate]);
+
+  const goPrev = useCallback(() => {
+    if (currentPage > 0) {
+      setCurrentPage(p => p - 1);
+    } else if (prevChapterId) {
+      // Substitui a rota do capítulo atual pelo anterior
+      navigate(`/read/${prevChapterId}`, { replace: true });
+    }
+  }, [currentPage, prevChapterId, navigate, setCurrentPage]);
+
+  const goNext = useCallback(() => {
+    if (currentPage < pages.length - 1) {
+      setCurrentPage(p => p + 1);
+    } else if (nextChapterId) {
+      markAsRead();
+      // Substitui a rota do capítulo atual pelo próximo
+      navigate(`/read/${nextChapterId}`, { replace: true });
+    }
+  }, [currentPage, pages.length, nextChapterId, navigate, markAsRead, setCurrentPage]);
 
   const handlePageClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (mode === 'scroll') return;
     const width = e.currentTarget.clientWidth;
     const x = e.nativeEvent.offsetX;
     if (x < width * 0.3) {
-      if (currentPage > 0) setCurrentPage(p => p - 1);
-      else if (prevChapterId) navigate(`/read/${prevChapterId}`);
+      goPrev();
     } else {
-      if (currentPage < pages.length - 1) setCurrentPage(p => p + 1);
-      else if (nextChapterId) {
-        markAsRead();
-        navigate(`/read/${nextChapterId}`);
-      }
+      goNext();
     }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (mode === 'scroll') return;
+      if (e.key === 'ArrowLeft') goPrev();
+      if (e.key === 'ArrowRight') goNext();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mode, goPrev, goNext]);
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
 
@@ -167,8 +196,14 @@ export default function Reader() {
            ))}
            <div className="p-8 space-y-8 max-w-lg mx-auto">
              <div className="flex flex-col gap-4">
-               {nextChapterId && <Button size="lg" className="w-full h-16 text-lg rounded-2xl shadow-lg" onClick={() => { markAsRead(); navigate(`/read/${nextChapterId}`); }}>Próximo Capítulo <ArrowRight className="ml-2 h-4 w-4" /></Button>}
-               <Button variant="outline" size="lg" className="w-full h-14 rounded-2xl" onClick={handleBack}>Voltar para o Mangá</Button>
+               {nextChapterId && (
+                 <Button size="lg" className="w-full h-16 text-lg rounded-2xl shadow-lg" onClick={goNext}>
+                   Próximo Capítulo <ArrowRight className="ml-2 h-4 w-4" />
+                 </Button>
+               )}
+               <Button variant="outline" size="lg" className="w-full h-14 rounded-2xl" onClick={handleBack}>
+                 Voltar para o Mangá
+               </Button>
              </div>
              <div className="pt-12 border-t border-primary/10">{chapterId && <CommentSection type="chapter" id={chapterId} />}</div>
              <div ref={bottomSentinelRef} className="h-32 w-full flex items-center justify-center border-t border-dashed mt-10">

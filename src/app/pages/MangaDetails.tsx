@@ -1,17 +1,18 @@
-import { useParams, Link } from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
 import { ChapterList } from "../components/ChapterList";
 import { CommentSection } from "../components/CommentSection";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Separator } from "../components/ui/separator";
 import { Skeleton } from "../components/ui/skeleton";
-import { Star, BookOpen, Plus, Share2, AlertCircle } from "lucide-react";
+import { Star, BookOpen, Plus, Share2, AlertCircle, ArrowLeft } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "../components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { useMangaDetailsViewModel } from "../../presentation/viewmodels/MangaDetailsViewModel";
 
 export default function MangaDetails() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const {
     manga,
     loading,
@@ -63,6 +64,13 @@ export default function MangaDetails() {
 
   return (
     <div className="container px-4 py-8">
+      {/* Back Button */}
+      <div className="mb-6">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-2">
+          <ArrowLeft className="h-4 w-4" /> Voltar
+        </Button>
+      </div>
+
       {/* Header Section */}
       <div className="flex flex-col md:flex-row gap-8 mb-12">
         {/* Cover Image */}
@@ -126,7 +134,15 @@ export default function MangaDetails() {
                 )}
               </DialogContent>
             </Dialog>
-            <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full" onClick={() => {
+              navigator.share({
+                title: manga.title,
+                url: window.location.href
+              }).catch(() => {
+                navigator.clipboard.writeText(window.location.href);
+                alert("Link copiado!");
+              });
+            }}>
               <Share2 className="mr-2 h-4 w-4" /> Compartilhar
             </Button>
           </div>
@@ -158,7 +174,7 @@ export default function MangaDetails() {
 
           <div>
             <h3 className="text-lg font-semibold mb-2">Sinopse</h3>
-            <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+            <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-justify">
               {manga.description || "Sem descrição disponível."}
             </p>
           </div>
