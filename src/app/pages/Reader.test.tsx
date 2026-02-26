@@ -50,7 +50,8 @@ describe("Reader Navigation", () => {
     const backButton = screen.getByLabelText("Voltar");
     fireEvent.click(backButton);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/manga/manga-id-123");
+    // Atualizado para refletir o uso de { replace: true } para limpar a stack (estilo Flutter)
+    expect(mockNavigate).toHaveBeenCalledWith("/manga/manga-id-123", { replace: true });
   });
 
   it("deve usar o histórico (navigate -1) como fallback se o mangá não estiver carregado", () => {
