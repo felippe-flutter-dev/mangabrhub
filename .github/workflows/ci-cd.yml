@@ -73,4 +73,8 @@ jobs:
           git fetch origin main
           git checkout main
           git merge $GITHUB_SHA --no-edit
-          git push origin main
+          
+          # Auto-Version Bump (Patch)
+          npm version patch -m "chore: bump version to %s [skip ci]"
+          
+          git push origin main --follow-tags

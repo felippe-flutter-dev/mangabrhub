@@ -9,7 +9,7 @@ import { auth, onAuthStateChanged, User as FirebaseUser } from "./lib/firebase";
 import { CookieConsent } from "./components/CookieConsent";
 import { userRepository } from "./di";
 import ScrollToTop from "./components/ScrollToTop";
-import { Analytics } from "@vercel/analytics/react";
+import packageJson from "../../package.json";
 
 export default function Root() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -111,7 +111,7 @@ export default function Root() {
         <footer className="py-6 md:px-8 md:py-0 border-t">
           <div className="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row px-4 text-center">
             <p className="text-balance text-sm leading-loose text-muted-foreground">
-              MangaBR Hub © {new Date().getFullYear()}. Alimentado pela API do Mangadex.
+              MangaBR Hub v{packageJson.version} © {new Date().getFullYear()}. Alimentado pela API do Mangadex.
               <span className="mx-2 block md:inline">
                 Desenvolvido por{" "}
                 <a
@@ -129,7 +129,6 @@ export default function Root() {
       </div>
       <Toaster />
       <CookieConsent />
-      <Analytics />
     </ThemeProvider>
   );
 }
