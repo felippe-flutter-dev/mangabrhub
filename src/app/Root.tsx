@@ -49,6 +49,12 @@ export default function Root() {
               >
                 Explorar
               </Link>
+              <Link
+                to="/about"
+                className="transition-colors hover:text-foreground/80 text-foreground/60 flex items-center gap-1"
+              >
+                Sobre
+              </Link>
               {user && (
                 <Link
                   to="/profile"
@@ -124,6 +130,9 @@ export default function Root() {
                 </a>
               </span>
             </p>
+            <nav className="flex items-center gap-4 text-xs font-medium">
+              <Link to="/about" className="text-muted-foreground hover:text-primary underline underline-offset-4">Conheça a nossa história</Link>
+            </nav>
           </div>
         </footer>
       </div>
