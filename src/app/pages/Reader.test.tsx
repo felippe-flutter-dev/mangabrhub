@@ -18,6 +18,14 @@ vi.mock("react-router", async () => {
   };
 });
 
+// Mock do Firebase para evitar erros de Analytics no ambiente de teste
+vi.mock("../lib/firebase", () => ({
+  auth: {
+    currentUser: null,
+  },
+  onAuthStateChanged: vi.fn(() => vi.fn()), // Retorna uma função de unsubscribe vazia
+}));
+
 describe("Reader Navigation", () => {
   const mockNavigate = vi.fn();
 
@@ -38,6 +46,10 @@ describe("Reader Navigation", () => {
       setCurrentPage: vi.fn(),
       constructPageUrl: (p: string) => p,
       markAsRead: vi.fn(),
+      refreshImageServer: vi.fn(),
+      setMode: vi.fn(),
+      setQuality: vi.fn(),
+      quality: "original"
     });
 
     render(
@@ -46,11 +58,9 @@ describe("Reader Navigation", () => {
       </MemoryRouter>
     );
 
-    // O botão agora é buscado por aria-label "Voltar"
     const backButton = screen.getByLabelText("Voltar");
     fireEvent.click(backButton);
 
-    // Atualizado para refletir o uso de { replace: true } para limpar a stack (estilo Flutter)
     expect(mockNavigate).toHaveBeenCalledWith("/manga/manga-id-123", { replace: true });
   });
 
@@ -66,6 +76,10 @@ describe("Reader Navigation", () => {
       setCurrentPage: vi.fn(),
       constructPageUrl: (p: string) => p,
       markAsRead: vi.fn(),
+      refreshImageServer: vi.fn(),
+      setMode: vi.fn(),
+      setQuality: vi.fn(),
+      quality: "original"
     });
 
     render(
