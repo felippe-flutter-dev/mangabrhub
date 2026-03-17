@@ -77,7 +77,12 @@ export default function MangaDetails() {
         <div className="flex-shrink-0 w-full md:w-[300px]">
           <div className="aspect-[2/3] relative rounded-lg overflow-hidden shadow-lg bg-muted">
             {manga.coverUrl ? (
-              <img src={manga.coverUrl} alt={manga.title} className="w-full h-full object-cover" />
+              <img
+                src={manga.coverUrl}
+                alt={manga.title}
+                className="w-full h-full object-cover"
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                 Sem Capa

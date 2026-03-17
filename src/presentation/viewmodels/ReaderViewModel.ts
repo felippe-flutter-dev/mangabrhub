@@ -15,6 +15,7 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshingServer, setRefreshingServer] = useState(false);
+
   const [serverVersion, setServerVersion] = useState(0);
 
   const [mode, setMode] = useState<'paged' | 'scroll'>(() =>
@@ -36,7 +37,7 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
     if (!chapterId || refreshingServer) return;
 
     const now = Date.now();
-    if (!force && now - lastRefreshTime.current < 8000) return;
+    if (!force && now - lastRefreshTime.current < 5000) return;
 
     setRefreshingServer(true);
     try {
@@ -47,9 +48,9 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
       setDataSaverPages(pageData.dataSaver);
       setServerVersion(v => v + 1);
       lastRefreshTime.current = Date.now();
-      console.log(`[MangaDex] Servidor atualizado para v${serverVersion + 1}`);
+      console.log(`MangaDex image server refreshed (v${serverVersion + 1})`);
     } catch (err) {
-      console.error("[MangaDex] Falha ao atualizar servidor:", err);
+      console.error("Failed to refresh MangaDex image server:", err);
     } finally {
       setRefreshingServer(false);
     }
@@ -64,8 +65,9 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
       const chapData = await chapterRepository.getChapter(id);
       setChapter(chapData);
 
+      // Verifica se é um capítulo externo
       if (chapData.externalUrl) {
-         setError(`Capítulo externo: ${new URL(chapData.externalUrl).hostname}`);
+         setError(`Este capítulo é servido externamente (${new URL(chapData.externalUrl).hostname}). Por favor, leia no site oficial.`);
          setLoading(false);
          return;
       }
@@ -93,14 +95,17 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
         if (feedJson.data) {
           const allChapters = feedJson.data;
           const currentNum = parseFloat(chapData.chapter);
+
           const next = allChapters.find((c: any) => parseFloat(c.attributes.chapter) > currentNum);
           setNextChapterId(next?.id || null);
+
           const prev = [...allChapters].reverse().find((c: any) => parseFloat(c.attributes.chapter) < currentNum);
           setPrevChapterId(prev?.id || null);
         }
       }
     } catch (err: any) {
-      setError(err.message || "Erro ao carregar capítulo.");
+      console.error("Reader Error:", err);
+      setError(err.message || "Falha ao carregar capítulo.");
     } finally {
       setLoading(false);
     }
@@ -120,11 +125,19 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
     localStorage.setItem('reader_quality', newQuality);
   };
 
+  const handleMarkAsRead = useCallback(() => {
+    if (chapterId && !hasMarkedAsReadThisSession.current) {
+       storageService.markChapterAsRead(chapterId);
+       hasMarkedAsReadThisSession.current = true;
+    }
+  }, [chapterId]);
+
   const constructPageUrl = (p: string, forceQuality?: 'data' | 'data-saver') => {
     if (!baseUrl || !hash || !p) return "";
     const type = forceQuality || (quality === 'data-saver' ? 'data-saver' : 'data');
-    const versionParam = serverVersion > 0 ? `?v=${serverVersion}` : "";
-    return `${baseUrl}/${type}/${hash}/${p}${versionParam}`;
+    const cacheBuster = serverVersion > 0 ? `&v=${serverVersion}` : '';
+    // MangaDex requer o uso do baseUrl retornado pelo /at-home/server
+    return `${baseUrl}/${type}/${hash}/${p}?t=${Date.now()}${cacheBuster}`;
   };
 
   return {
@@ -134,7 +147,8 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
     currentPage, setCurrentPage, nextChapterId, prevChapterId,
     constructPageUrl,
     refreshImageServer,
-    markAsRead: () => chapterId && !hasMarkedAsReadThisSession.current && (storageService.markChapterAsRead(chapterId), hasMarkedAsReadThisSession.current = true),
+    serverVersion,
+    markAsRead: handleMarkAsRead,
     reload: () => chapterId && loadChapterData(chapterId)
   };
 }
