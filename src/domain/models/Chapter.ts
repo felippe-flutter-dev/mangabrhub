@@ -7,4 +7,5 @@ export interface Chapter {
   publishAt: string;
   pages: number;
   scanlationGroup?: string;
+  externalUrl?: string | null;
 }
