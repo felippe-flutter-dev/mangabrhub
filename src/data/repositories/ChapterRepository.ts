@@ -57,17 +57,17 @@ export class ChapterRepository implements IChapterRepository {
   }
 
   async getChapterPages(id: string): Promise<{ baseUrl: string, hash: string, pages: string[], dataSaver: string[] }> {
-    // IMPORTANTE: Chamamos a API DIRETAMENTE do navegador aqui.
-    // Isso garante que a baseUrl seja válida para o IP do usuário final.
-    // Bypassing o Proxy para este endpoint específico.
+    const apiParams: any = {};
+    if (isProd) apiParams.path = `at-home/server/${id}`;
+
     try {
-      const response = await axios.get(`https://api.mangadex.org/at-home/server/${id}`, {
-        timeout: 15000
+      // Usando estritamente o Proxy para consistência e segurança
+      const response = await client.get(this.getPath(`/at-home/server/${id}`), {
+        params: apiParams
       });
 
       const { baseUrl, chapter } = response.data;
-
-      if (!chapter?.data) throw new Error("Páginas não disponíveis para este capítulo.");
+      if (!chapter?.data) throw new Error("Este capítulo não possui páginas disponíveis.");
 
       return {
         baseUrl,
@@ -76,11 +76,8 @@ export class ChapterRepository implements IChapterRepository {
         dataSaver: chapter.dataSaver,
       };
     } catch (error: any) {
-      console.error("[MangaDex] Erro ao obter servidor de imagens:", error.message);
-
-      // Fallback: Tenta via proxy se a chamada direta falhar (CORS ou rede)
-      // Mas o 404 que o usuário viu confirma que via proxy o nó retornado é inválido para ele.
-      throw new Error("O servidor de imagens da MangaDex recusou a conexão direta. Tente recarregar a página.");
+      console.error("[MangaBR Hub] Erro no Proxy ao buscar páginas:", error.message);
+      throw new Error("Falha ao obter páginas via Proxy. Tente recarregar.");
     }
   }
 
