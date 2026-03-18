@@ -31,9 +31,15 @@ export class MangaRepository implements IMangaRepository {
   private mapToManga(data: any): Manga {
     const title = Object.values(data.attributes.title)[0] as string || "Untitled";
     const coverRel = data.relationships.find((r: any) => r.type === 'cover_art');
-    const coverUrl = coverRel?.attributes?.fileName
-      ? `${UPLOADS_BASE_URL}/covers/${data.id}/${coverRel.attributes.fileName}`
+
+    let coverUrl = coverRel?.attributes?.fileName
+      ? `${UPLOADS_BASE_URL}/covers/${data.id}/${coverRel.attributes.fileName}.256.jpg`
       : null;
+
+    // Se estiver em produção, passa a imagem pelo Proxy para evitar bloqueio de Referer/IP
+    if (isProd && coverUrl) {
+      coverUrl = `/api/proxy?url=${encodeURIComponent(coverUrl)}`;
+    }
 
     const descriptions = data.attributes.description || {};
     const description = descriptions['pt-br'] || descriptions['pt'] || descriptions['en'] || Object.values(descriptions)[0] || "";
@@ -113,7 +119,6 @@ export class MangaRepository implements IMangaRepository {
 
     const response = await client.get(this.getPath('/manga'), { params: apiParams });
 
-    // Filtro rigoroso no cliente para garantir apenas mangás com capítulos em PT-BR/PT (trata dados obsoletos da API)
     const filteredData = response.data.data
       .map((m: any) => this.mapToManga(m))
       .filter((m: Manga) =>

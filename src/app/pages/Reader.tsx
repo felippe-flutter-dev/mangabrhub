@@ -8,7 +8,9 @@ import { cn } from "../components/ui/utils";
 import { auth, onAuthStateChanged } from "../lib/firebase";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
 
-// Componente de Imagem Isolado para evitar que um erro afete o restante da cascata
+const isProd = import.meta.env.PROD;
+
+// Componente de Imagem Isolado
 function ReaderImage({
   src,
   dataSaverSrc,
@@ -28,6 +30,7 @@ function ReaderImage({
   const [usingDataSaver, setUsingDataSaver] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
+  // Reseta o estado apenas se a URL principal mudar de verdade
   useEffect(() => {
     setStatus('loading');
     setUsingDataSaver(false);
@@ -35,15 +38,21 @@ function ReaderImage({
   }, [src]);
 
   const handleError = () => {
+    if (status === 'error') return;
+
     if (!usingDataSaver && dataSaverSrc) {
+       console.log("[ReaderImage] Falha na original, tentando data-saver...");
        setUsingDataSaver(true);
        setStatus('loading');
     } else if (retryCount < 1) {
+       console.log("[ReaderImage] Tentando re-render da página...");
        setRetryCount(prev => prev + 1);
        setStatus('loading');
     } else {
+       console.error("[ReaderImage] Falha definitiva na página.");
        setStatus('error');
-       onGlobalRefresh?.();
+       // Só aciona o refresh global em produção se houver falhas críticas
+       if (isProd) onGlobalRefresh?.();
     }
   };
 
@@ -87,7 +96,9 @@ function ReaderImage({
             onFullLoad?.();
           }}
           onError={handleError}
+          // MangaDex odeia no-referrer. strict-origin é melhor para evitar 404 por "bot check"
           referrerPolicy="strict-origin-when-cross-origin"
+          loading="lazy"
         />
       )}
     </div>
@@ -107,6 +118,7 @@ export default function Reader() {
   const [loadedCount, setLoadedCount] = useState(0);
   const [isReadyToObserve, setIsReadyToObserve] = useState(false);
   const consecutiveErrors = useRef(0);
+  const lastErrorTime = useRef(0);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -171,10 +183,16 @@ export default function Reader() {
   }, [chapterId, quality]);
 
   const handleGlobalError = useCallback(() => {
+    const now = Date.now();
+    // Debounce agressivo para evitar loop em dev
+    if (now - lastErrorTime.current < 10000) return;
+
     consecutiveErrors.current += 1;
     if (consecutiveErrors.current >= 3) {
+      console.warn("[Reader] Muitas falhas detectadas. Tentando trocar de servidor...");
       refreshImageServer();
       consecutiveErrors.current = 0;
+      lastErrorTime.current = now;
     }
   }, [refreshImageServer]);
 

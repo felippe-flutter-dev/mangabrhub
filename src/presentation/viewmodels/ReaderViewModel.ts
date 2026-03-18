@@ -37,7 +37,7 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
     if (!chapterId || refreshingServer) return;
 
     const now = Date.now();
-    if (!force && now - lastRefreshTime.current < 5000) return;
+    if (!force && now - lastRefreshTime.current < 10000) return;
 
     setRefreshingServer(true);
     try {
@@ -48,13 +48,12 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
       setDataSaverPages(pageData.dataSaver);
       setServerVersion(v => v + 1);
       lastRefreshTime.current = Date.now();
-      console.log(`MangaDex image server refreshed (v${serverVersion + 1})`);
     } catch (err) {
-      console.error("Failed to refresh MangaDex image server:", err);
+      console.error("[Reader] Erro ao trocar servidor:", err);
     } finally {
       setRefreshingServer(false);
     }
-  }, [chapterId, refreshingServer, serverVersion]);
+  }, [chapterId, refreshingServer]);
 
   const loadChapterData = useCallback(async (id: string) => {
     setLoading(true);
@@ -65,9 +64,8 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
       const chapData = await chapterRepository.getChapter(id);
       setChapter(chapData);
 
-      // Verifica se é um capítulo externo
       if (chapData.externalUrl) {
-         setError(`Este capítulo é servido externamente (${new URL(chapData.externalUrl).hostname}). Por favor, leia no site oficial.`);
+         setError(`Este capítulo é servido externamente. Leia no site oficial.`);
          setLoading(false);
          return;
       }
@@ -81,30 +79,28 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
       setCurrentPage(0);
 
       const mId = (chapData as any).relationships?.find((r: any) => r.type === 'manga')?.id;
-
       if (mId) {
         const mangaData = await mangaRepository.getMangaById(mId);
         setManga(mangaData);
         storageService.setCurrentlyReading(mId, id);
 
-        const feedPath = `manga/${mId}/feed?translatedLanguage[]=pt-br&translatedLanguage[]=pt&order[chapter]=asc&limit=500&includes[]=scanlation_group`;
+        const feedPath = `manga/${mId}/feed?translatedLanguage[]=pt-br&translatedLanguage[]=pt&order[chapter]=asc&limit=500`;
         const feedUrl = isProd ? `/api/proxy?path=${encodeURIComponent(feedPath)}` : `https://api.mangadex.org/${feedPath}`;
-        const feedRes = await fetch(feedUrl);
-        const feedJson = await feedRes.json();
 
-        if (feedJson.data) {
-          const allChapters = feedJson.data;
-          const currentNum = parseFloat(chapData.chapter);
-
-          const next = allChapters.find((c: any) => parseFloat(c.attributes.chapter) > currentNum);
-          setNextChapterId(next?.id || null);
-
-          const prev = [...allChapters].reverse().find((c: any) => parseFloat(c.attributes.chapter) < currentNum);
-          setPrevChapterId(prev?.id || null);
-        }
+        try {
+          const feedRes = await fetch(feedUrl);
+          const feedJson = await feedRes.json();
+          if (feedJson.data) {
+            const allChapters = feedJson.data;
+            const currentNum = parseFloat(chapData.chapter);
+            const next = allChapters.find((c: any) => parseFloat(c.attributes.chapter) > currentNum);
+            setNextChapterId(next?.id || null);
+            const prev = [...allChapters].reverse().find((c: any) => parseFloat(c.attributes.chapter) < currentNum);
+            setPrevChapterId(prev?.id || null);
+          }
+        } catch (e) { /* ignore */ }
       }
     } catch (err: any) {
-      console.error("Reader Error:", err);
       setError(err.message || "Falha ao carregar capítulo.");
     } finally {
       setLoading(false);
@@ -125,20 +121,18 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
     localStorage.setItem('reader_quality', newQuality);
   };
 
-  const handleMarkAsRead = useCallback(() => {
-    if (chapterId && !hasMarkedAsReadThisSession.current) {
-       storageService.markChapterAsRead(chapterId);
-       hasMarkedAsReadThisSession.current = true;
-    }
-  }, [chapterId]);
-
-  const constructPageUrl = (p: string, forceQuality?: 'data' | 'data-saver') => {
+  const constructPageUrl = useCallback((p: string, forceQuality?: 'data' | 'data-saver') => {
     if (!baseUrl || !hash || !p) return "";
     const type = forceQuality || (quality === 'data-saver' ? 'data-saver' : 'data');
-    const cacheBuster = serverVersion > 0 ? `&v=${serverVersion}` : '';
-    // MangaDex requer o uso do baseUrl retornado pelo /at-home/server
-    return `${baseUrl}/${type}/${hash}/${p}?t=${Date.now()}${cacheBuster}`;
-  };
+    const rawUrl = `${baseUrl}/${type}/${hash}/${p}`;
+
+    if (isProd) {
+      return `/api/proxy?url=${encodeURIComponent(rawUrl)}`;
+    }
+
+    const cacheBuster = serverVersion > 0 ? `v=${serverVersion}` : '';
+    return `${rawUrl}${cacheBuster ? '?' + cacheBuster : ''}`;
+  }, [baseUrl, hash, quality, serverVersion]);
 
   return {
     chapter, manga, pages: quality === 'data-saver' ? dataSaverPages : pages, loading, error,
@@ -148,7 +142,7 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
     constructPageUrl,
     refreshImageServer,
     serverVersion,
-    markAsRead: handleMarkAsRead,
+    markAsRead: () => chapterId && storageService.markChapterAsRead(chapterId),
     reload: () => chapterId && loadChapterData(chapterId)
   };
 }
