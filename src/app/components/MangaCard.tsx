@@ -22,7 +22,7 @@ export function MangaCard({ manga }: MangaCardProps) {
             alt={title}
             className="h-full w-full object-cover"
             loading="lazy"
-            referrerPolicy="strict-origin-when-cross-origin"
+            referrerPolicy="no-referrer"
           />
 
           {/* Status Badge */}
