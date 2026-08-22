@@ -2,6 +2,7 @@
 
 Uma plataforma de engenharia de software de alto desempenho para exploração e leitura de mangás em Português. Este projeto não é apenas um leitor, mas uma vitrine de práticas avançadas de desenvolvimento frontend, focando em escalabilidade, desacoplamento e experiência do usuário (UX).
 
+
 ## 🛠 Tecnologias e Ferramentas
 
 ![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)
