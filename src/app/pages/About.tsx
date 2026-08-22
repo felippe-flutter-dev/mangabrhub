@@ -105,7 +105,7 @@ export default function About() {
             </div>
             <div className="flex gap-4 pt-2">
               <Button variant="outline" size="sm" className="gap-2" asChild>
-                <a href="https://github.com/felippe-flutter-dev/mangabr-hub" target="_blank" rel="noreferrer"><Github className="h-4 w-4" /> GitHub</a>
+                <a href="https://github.com/felippe-flutter-dev/mangabrhub" target="_blank" rel="noreferrer"><Github className="h-4 w-4" /> GitHub</a>
               </Button>
               <Button variant="outline" size="sm" className="gap-2" asChild>
                 <Link to="/supporter"><Coffee className="h-4 w-4" /> Pagar um Café</Link>

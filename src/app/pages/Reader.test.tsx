@@ -93,4 +93,37 @@ describe("Reader Navigation", () => {
 
     expect(mockNavigate).toHaveBeenCalledWith(-1);
   });
+
+  it("deve abrir o próximo capítulo e marcar o atual como lido", () => {
+    const markAsRead = vi.fn();
+    (useReaderViewModel as any).mockReturnValue({
+      manga: { id: "manga-id-123", title: "Test Manga" },
+      chapter: { chapter: "1", title: "Cap 1" },
+      pages: ["p1.jpg"],
+      loading: false,
+      error: null,
+      mode: "paged",
+      currentPage: 0,
+      setCurrentPage: vi.fn(),
+      constructPageUrl: (p: string) => p,
+      markAsRead,
+      refreshImageServer: vi.fn(),
+      setMode: vi.fn(),
+      setQuality: vi.fn(),
+      quality: "original",
+      nextChapterId: "chapter-2",
+      prevChapterId: null,
+    });
+
+    render(
+      <MemoryRouter>
+        <Reader />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Próximo Capítulo/i }));
+
+    expect(markAsRead).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith("/read/chapter-2", { replace: true });
+  });
 });

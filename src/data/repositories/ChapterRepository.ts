@@ -28,7 +28,9 @@ const client = axios.create({
 
 export class ChapterRepository implements IChapterRepository {
   private mapToChapter(data: any): Chapter {
-    const scanGroup = data.relationships.find((r: any) => r.type === 'scanlation_group');
+    const relationships = data.relationships || [];
+    const scanGroup = relationships.find((r: any) => r.type === 'scanlation_group');
+    const manga = relationships.find((r: any) => r.type === 'manga');
     return {
       id: data.id,
       volume: data.attributes.volume,
@@ -38,6 +40,8 @@ export class ChapterRepository implements IChapterRepository {
       publishAt: data.attributes.publishAt,
       pages: data.attributes.pages,
       scanlationGroup: scanGroup?.attributes?.name,
+      scanlationGroupId: scanGroup?.id,
+      mangaId: manga?.id,
       externalUrl: data.attributes.externalUrl,
     };
   }
@@ -81,10 +85,16 @@ export class ChapterRepository implements IChapterRepository {
     }
   }
 
-  async getMangaChapters(mangaId: string, limit: number = 100, offset: number = 0, order: 'asc' | 'desc' = 'desc'): Promise<{ data: Chapter[], total: number }> {
+  async getMangaChapters(
+    mangaId: string,
+    limit: number = 100,
+    offset: number = 0,
+    order: 'asc' | 'desc' = 'desc',
+    translatedLanguages: string[] = ['pt-br', 'pt'],
+  ): Promise<{ data: Chapter[], total: number }> {
     const apiParams: any = {
       limit, offset, "order[chapter]": order,
-      "translatedLanguage[]": ['pt-br', 'pt'],
+      "translatedLanguage[]": translatedLanguages,
       "includes[]": ['scanlation_group'],
       "contentRating[]": ['safe', 'suggestive', 'erotica', 'pornographic']
     };

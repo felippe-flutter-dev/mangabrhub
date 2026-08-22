@@ -192,8 +192,8 @@ Siga os passos abaixo para rodar o projeto em sua máquina:
 
 1. **Clonar o Repositório:**
    ```sh
-   git clone https://github.com/felippe-flutter-dev/mangabr-hub.git
-   cd mangabr-hub
+   git clone https://github.com/felippe-flutter-dev/mangabrhub.git
+   cd mangabrhub
    ```
 
 2. **Instalar Dependências:**
