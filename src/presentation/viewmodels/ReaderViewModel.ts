@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Chapter } from "../../domain/models/Chapter";
 import { Manga } from "../../domain/models/Manga";
 import { chapterRepository, mangaRepository, storageService } from "../../app/di";
+import { findAdjacentChapter } from "./readerNavigation";
 
 const isProd = import.meta.env.PROD;
 
@@ -58,6 +59,8 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
   const loadChapterData = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
+    setNextChapterId(null);
+    setPrevChapterId(null);
     hasMarkedAsReadThisSession.current = false;
 
     try {
@@ -78,27 +81,30 @@ export function useReaderViewModel(chapterId: string | undefined, _userUid: stri
       setServerVersion(0);
       setCurrentPage(0);
 
-      const mId = (chapData as any).relationships?.find((r: any) => r.type === 'manga')?.id;
+      const mId = chapData.mangaId;
       if (mId) {
         const mangaData = await mangaRepository.getMangaById(mId);
         setManga(mangaData);
         storageService.setCurrentlyReading(mId, id);
 
-        const feedPath = `manga/${mId}/feed?translatedLanguage[]=pt-br&translatedLanguage[]=pt&order[chapter]=asc&limit=500`;
-        const feedUrl = isProd ? `/api/proxy?path=${encodeURIComponent(feedPath)}` : `https://api.mangadex.org/${feedPath}`;
-
         try {
-          const feedRes = await fetch(feedUrl);
-          const feedJson = await feedRes.json();
-          if (feedJson.data) {
-            const allChapters = feedJson.data;
-            const currentNum = parseFloat(chapData.chapter);
-            const next = allChapters.find((c: any) => parseFloat(c.attributes.chapter) > currentNum);
-            setNextChapterId(next?.id || null);
-            const prev = [...allChapters].reverse().find((c: any) => parseFloat(c.attributes.chapter) < currentNum);
-            setPrevChapterId(prev?.id || null);
-          }
-        } catch (e) { /* ignore */ }
+          // A navegação do leitor usa somente PT-BR e mantém a scan atual
+          // enquanto ela ainda tiver capítulos disponíveis.
+          const { data: allChapters } = await chapterRepository.getMangaChapters(
+            mId,
+            500,
+            0,
+            'asc',
+            ['pt-br'],
+          );
+          const next = findAdjacentChapter(allChapters, chapData, 'next');
+          const previous = findAdjacentChapter(allChapters, chapData, 'previous');
+          setNextChapterId(next?.id || null);
+          setPrevChapterId(previous?.id || null);
+        } catch (e) {
+          // O capítulo continua legível mesmo se o feed não responder.
+          console.warn("[Reader] Não foi possível carregar a sequência de capítulos.");
+        }
       }
     } catch (err: any) {
       setError(err.message || "Falha ao carregar capítulo.");
